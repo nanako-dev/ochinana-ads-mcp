@@ -9,7 +9,7 @@ Google 広告の運用を手伝う MCP サーバー（Claude などの AI から
 
 Google の公式の道具ではありません。
 
-知識ベースの中身を図と表で読める運用サイト: https://nanako-dev.github.io/unyo-map/
+知識ベースの中身を図と表で読める運用サイト: https://nanako-dev.github.io/ads-analytics-map/
 
 ## できること（道具 51 個）
 
