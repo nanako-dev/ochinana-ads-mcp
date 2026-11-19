@@ -1,0 +1,19 @@
+[project]
+name = "ochinana-ads-mcp"
+version = "0.13.0"
+description = "OCHINANA の広告運用セット（読む道具・点検・見込み・知識ベース・計算の道具）"
+requires-python = ">=3.12"
+dependencies = ["mcp>=1.10", "google-ads>=28"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ochinana_ads*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,721 @@
+{
+ "retrieved": "2026-11-19",
+ "sets": [
+  {
+   "id": "wordstream_google_search_2025",
+   "media": "Google広告（検索）",
+   "region": "US",
+   "currency": "USD",
+   "period": "2024-04-01〜2025-03-31（米国の検索広告 16,446 キャンペーン、各カテゴリ最少 64 キャンペーン、中央値、Google広告＋Microsoft広告）",
+   "source_title": "Google Ads Benchmarks 2025: Competitive Data & Insights for Every Industry (WordStream by LocaliQ, Last Updated Sep 29, 2025)",
+   "source_url": "https://www.wordstream.com/blog/2025-google-ads-benchmarks",
+   "fetched_via": "web.archive.org snapshot 20260116120615 (wordstream.com は直接アクセス 403)",
+   "metrics_note": "全業種平均: CTR 6.66% / CPC $5.26 / CVR 7.52% / CPL $70.11。CVR=リード数÷クリック数。値は中央値。",
+   "rows": [
+    {
+     "industry_en": "Animals & Pets",
+     "industry_ja": "動物・ペット",
+     "ctr": 0.0658,
+     "cpc_usd": 3.97,
+     "cvr": 0.1307,
+     "cpl_usd": 31.82
+    },
+    {
+     "industry_en": "Apparel / Fashion & Jewelry",
+     "industry_ja": "アパレル・ファッション・ジュエリー",
+     "ctr": 0.0677,
+     "cpc_usd": 4.31,
+     "cvr": 0.0399,
+     "cpl_usd": 101.49
+    },
+    {
+     "industry_en": "Arts & Entertainment",
+     "industry_ja": "アート・エンターテインメント",
+     "ctr": 0.131,
+     "cpc_usd": 1.6,
+     "cvr": 0.0484,
+     "cpl_usd": 30.27
+    },
+    {
+     "industry_en": "Attorneys & Legal Services",
+     "industry_ja": "弁護士・法律サービス",
+     "ctr": 0.0597,
+     "cpc_usd": 8.58,
+     "cvr": 0.0509,
+     "cpl_usd": 131.63
+    },
+    {
+     "industry_en": "Automotive — For Sale",
+     "industry_ja": "自動車（販売）",
+     "ctr": 0.0829,
+     "cpc_usd": 2.41,
+     "cvr": 0.0776,
+     "cpl_usd": 38.86
+    },
+    {
+     "industry_en": "Automotive — Repair, Service & Parts",
+     "industry_ja": "自動車（修理・整備・部品）",
+     "ctr": 0.0556,
+     "cpc_usd": 3.9,
+     "cvr": 0.1467,
+     "cpl_usd": 28.5
+    },
+    {
+     "industry_en": "Beauty & Personal Care",
+     "industry_ja": "美容・パーソナルケア",
+     "ctr": 0.0571,
+     "cpc_usd": 5.7,
+     "cvr": 0.0782,
+     "cpl_usd": 60.34
+    },
+    {
+     "industry_en": "Business Services",
+     "industry_ja": "ビジネスサービス",
+     "ctr": 0.0565,
+     "cpc_usd": 5.58,
+     "cvr": 0.0514,
+     "cpl_usd": 103.54
+    },
+    {
+     "industry_en": "Career & Employment",
+     "industry_ja": "キャリア・求人",
+     "ctr": 0.0657,
+     "cpc_usd": 5.16,
+     "cvr": 0.0433,
+     "cpl_usd": 62.8
+    },
+    {
+     "industry_en": "Dentists & Dental Services",
+     "industry_ja": "歯科",
+     "ctr": 0.0544,
+     "cpc_usd": 7.85,
+     "cvr": 0.0908,
+     "cpl_usd": 83.93
+    },
+    {
+     "industry_en": "Education & Instruction",
+     "industry_ja": "教育・スクール",
+     "ctr": 0.0574,
+     "cpc_usd": 6.23,
+     "cvr": 0.1138,
+     "cpl_usd": 90.02
+    },
+    {
+     "industry_en": "Finance & Insurance",
+     "industry_ja": "金融・保険",
+     "ctr": 0.0833,
+     "cpc_usd": 3.46,
+     "cvr": 0.0255,
+     "cpl_usd": 83.93
+    },
+    {
+     "industry_en": "Furniture",
+     "industry_ja": "家具",
+     "ctr": 0.0611,
+     "cpc_usd": 3.86,
+     "cvr": 0.0273,
+     "cpl_usd": 121.51
+    },
+    {
+     "industry_en": "Health & Fitness",
+     "industry_ja": "健康・フィットネス",
+     "ctr": 0.0718,
+     "cpc_usd": 5.0,
+     "cvr": 0.068,
+     "cpl_usd": 62.8
+    },
+    {
+     "industry_en": "Home & Home Improvement",
+     "industry_ja": "住宅・リフォーム",
+     "ctr": 0.0637,
+     "cpc_usd": 7.85,
+     "cvr": 0.0733,
+     "cpl_usd": 90.92
+    },
+    {
+     "industry_en": "Industrial & Commercial",
+     "industry_ja": "産業・業務用",
+     "ctr": 0.0623,
+     "cpc_usd": 5.7,
+     "cvr": 0.0717,
+     "cpl_usd": 85.63
+    },
+    {
+     "industry_en": "Personal Services",
+     "industry_ja": "パーソナルサービス",
+     "ctr": 0.0769,
+     "cpc_usd": 5.81,
+     "cvr": 0.0974,
+     "cpl_usd": 53.52
+    },
+    {
+     "industry_en": "Physicians & Surgeons",
+     "industry_ja": "医師・外科（医療）",
+     "ctr": 0.0673,
+     "cpc_usd": 5.0,
+     "cvr": 0.1162,
+     "cpl_usd": 56.83
+    },
+    {
+     "industry_en": "Real Estate",
+     "industry_ja": "不動産",
+     "ctr": 0.0843,
+     "cpc_usd": 2.53,
+     "cvr": 0.0328,
+     "cpl_usd": 100.48
+    },
+    {
+     "industry_en": "Restaurants & Food",
+     "industry_ja": "飲食",
+     "ctr": 0.0758,
+     "cpc_usd": 2.05,
+     "cvr": 0.0709,
+     "cpl_usd": 30.27
+    },
+    {
+     "industry_en": "Shopping, Collectibles & Gifts",
+     "industry_ja": "ショッピング・コレクション・ギフト",
+     "ctr": 0.0892,
+     "cpc_usd": 3.49,
+     "cvr": 0.0383,
+     "cpl_usd": 47.94
+    },
+    {
+     "industry_en": "Sports & Recreation",
+     "industry_ja": "スポーツ・レクリエーション",
+     "ctr": 0.0919,
+     "cpc_usd": 2.64,
+     "cvr": 0.0762,
+     "cpl_usd": 47.47
+    },
+    {
+     "industry_en": "Travel",
+     "industry_ja": "旅行",
+     "ctr": 0.0873,
+     "cpc_usd": 2.12,
+     "cvr": 0.0575,
+     "cpl_usd": 73.7
+    }
+   ]
+  },
+  {
+   "id": "localiq_google_search_2026",
+   "media": "Google広告（検索）",
+   "region": "US",
+   "currency": "USD",
+   "period": "2025-04〜2026-03（LocaliQ 掲載、Last Updated 2026-06-01）",
+   "source_title": "Search Advertising Benchmarks for Every Industry [2026 Data] (LocaliQ in partnership with WordStream)",
+   "source_url": "https://localiq.com/blog/search-advertising-benchmarks/",
+   "metrics_note": "全業種平均: CTR 6.64% / CPC $5.42 / CVR 8.18% / CPL $66.69。2025 版の後継（最新版）。",
+   "rows": [
+    {
+     "industry_en": "Animals & Pets",
+     "industry_ja": "動物・ペット",
+     "ctr": 0.0749,
+     "cpc_usd": 4.06,
+     "cvr": 0.1622,
+     "cpl_usd": 31.5
+    },
+    {
+     "industry_en": "Apparel / Fashion & Jewelry",
+     "industry_ja": "アパレル・ファッション・ジュエリー",
+     "ctr": 0.0664,
+     "cpc_usd": 4.44,
+     "cvr": 0.045,
+     "cpl_usd": 97.51
+    },
+    {
+     "industry_en": "Arts & Entertainment",
+     "industry_ja": "アート・エンターテインメント",
+     "ctr": 0.1275,
+     "cpc_usd": 1.63,
+     "cvr": 0.0591,
+     "cpl_usd": 26.84
+    },
+    {
+     "industry_en": "Attorneys & Legal Services",
+     "industry_ja": "弁護士・法律サービス",
+     "ctr": 0.0587,
+     "cpc_usd": 9.87,
+     "cvr": 0.0555,
+     "cpl_usd": 131.63
+    },
+    {
+     "industry_en": "Automotive — For Sale",
+     "industry_ja": "自動車（販売）",
+     "ctr": 0.0828,
+     "cpc_usd": 2.27,
+     "cvr": 0.0601,
+     "cpl_usd": 44.26
+    },
+    {
+     "industry_en": "Automotive — Repair, Service & Parts",
+     "industry_ja": "自動車（修理・整備・部品）",
+     "ctr": 0.0556,
+     "cpc_usd": 4.35,
+     "cvr": 0.1551,
+     "cpl_usd": 29.96
+    },
+    {
+     "industry_en": "Beauty & Personal Care",
+     "industry_ja": "美容・パーソナルケア",
+     "ctr": 0.0675,
+     "cpc_usd": 4.62,
+     "cvr": 0.1035,
+     "cpl_usd": 39.25
+    },
+    {
+     "industry_en": "Business Services",
+     "industry_ja": "ビジネスサービス",
+     "ctr": 0.061,
+     "cpc_usd": 5.87,
+     "cvr": 0.0485,
+     "cpl_usd": 93.69
+    },
+    {
+     "industry_en": "Career & Employment",
+     "industry_ja": "キャリア・求人",
+     "ctr": 0.0588,
+     "cpc_usd": 5.81,
+     "cvr": 0.0305,
+     "cpl_usd": 67.36
+    },
+    {
+     "industry_en": "Dentists & Dental Services",
+     "industry_ja": "歯科",
+     "ctr": 0.0566,
+     "cpc_usd": 8.0,
+     "cvr": 0.1067,
+     "cpl_usd": 72.97
+    },
+    {
+     "industry_en": "Education & Instruction",
+     "industry_ja": "教育・スクール",
+     "ctr": 0.0756,
+     "cpc_usd": 4.81,
+     "cvr": 0.1314,
+     "cpl_usd": 77.48
+    },
+    {
+     "industry_en": "Finance & Insurance",
+     "industry_ja": "金融・保険",
+     "ctr": 0.0983,
+     "cpc_usd": 3.39,
+     "cvr": 0.0264,
+     "cpl_usd": 74.44
+    },
+    {
+     "industry_en": "Furniture",
+     "industry_ja": "家具",
+     "ctr": 0.0657,
+     "cpc_usd": 3.97,
+     "cvr": 0.0299,
+     "cpl_usd": 106.7
+    },
+    {
+     "industry_en": "Health & Fitness",
+     "industry_ja": "健康・フィットネス",
+     "ctr": 0.0581,
+     "cpc_usd": 6.17,
+     "cvr": 0.0694,
+     "cpl_usd": 67.36
+    },
+    {
+     "industry_en": "Home & Home Improvement",
+     "industry_ja": "住宅・リフォーム",
+     "ctr": 0.0647,
+     "cpc_usd": 8.33,
+     "cvr": 0.0805,
+     "cpl_usd": 90.92
+    },
+    {
+     "industry_en": "Industrial & Commercial",
+     "industry_ja": "産業・業務用",
+     "ctr": 0.0657,
+     "cpc_usd": 5.87,
+     "cvr": 0.082,
+     "cpl_usd": 75.19
+    },
+    {
+     "industry_en": "Personal Services",
+     "industry_ja": "パーソナルサービス",
+     "ctr": 0.0716,
+     "cpc_usd": 7.17,
+     "cvr": 0.1234,
+     "cpl_usd": 54.6
+    },
+    {
+     "industry_en": "Physicians & Surgeons",
+     "industry_ja": "医師・外科（医療）",
+     "ctr": 0.0661,
+     "cpc_usd": 4.76,
+     "cvr": 0.1243,
+     "cpl_usd": 40.04
+    },
+    {
+     "industry_en": "Real Estate",
+     "industry_ja": "不動産",
+     "ctr": 0.0761,
+     "cpc_usd": 3.22,
+     "cvr": 0.037,
+     "cpl_usd": 102.51
+    },
+    {
+     "industry_en": "Restaurants & Food",
+     "industry_ja": "飲食",
+     "ctr": 0.0683,
+     "cpc_usd": 2.05,
+     "cvr": 0.0805,
+     "cpl_usd": 30.57
+    },
+    {
+     "industry_en": "Shopping, Collectibles & Gifts",
+     "industry_ja": "ショッピング・コレクション・ギフト",
+     "ctr": 0.0828,
+     "cpc_usd": 4.14,
+     "cvr": 0.0401,
+     "cpl_usd": 49.4
+    },
+    {
+     "industry_en": "Sports & Recreation",
+     "industry_ja": "スポーツ・レクリエーション",
+     "ctr": 0.0875,
+     "cpc_usd": 2.77,
+     "cvr": 0.0769,
+     "cpl_usd": 44.26
+    },
+    {
+     "industry_en": "Travel",
+     "industry_ja": "旅行",
+     "ctr": 0.0932,
+     "cpc_usd": 2.14,
+     "cvr": 0.0583,
+     "cpl_usd": 44.7
+    }
+   ]
+  },
+  {
+   "id": "wordstream_facebook_traffic_2025",
+   "media": "Facebook広告（目的: トラフィック）",
+   "region": "US",
+   "currency": "USD",
+   "period": "2024-04-01〜2025-06-30（米国 554 キャンペーン、各カテゴリ最少 3、中央値）",
+   "source_title": "Facebook Ads Benchmarks 2025 (WordStream by LocaliQ, Last Updated Sep 15, 2025)",
+   "source_url": "https://www.wordstream.com/blog/facebook-ads-benchmarks-2025",
+   "fetched_via": "web.archive.org snapshot 20251216115716",
+   "metrics_note": "トラフィック目的は CTR と CPC のみ公表（CVR・CPL は意図的に省略）。全業種平均: CTR 1.71% / CPC $0.70。",
+   "rows": [
+    {
+     "industry_en": "Animals & Pets",
+     "industry_ja": "動物・ペット",
+     "ctr": 0.0164,
+     "cpc_usd": 0.78,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Apparel / Fashion & Jewelry",
+     "industry_ja": "アパレル・ファッション・ジュエリー",
+     "ctr": 0.0129,
+     "cpc_usd": 0.86,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Arts & Entertainment",
+     "industry_ja": "アート・エンターテインメント",
+     "ctr": 0.021,
+     "cpc_usd": 0.49,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Attorneys & Legal Services",
+     "industry_ja": "弁護士・法律サービス",
+     "ctr": 0.0176,
+     "cpc_usd": 0.86,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Automotive — For Sale",
+     "industry_ja": "自動車（販売）",
+     "ctr": 0.0148,
+     "cpc_usd": 0.79,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Automotive — Repair, Service & Parts",
+     "industry_ja": "自動車（修理・整備・部品）",
+     "ctr": 0.008,
+     "cpc_usd": 0.81,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Beauty & Personal Care",
+     "industry_ja": "美容・パーソナルケア",
+     "ctr": 0.0181,
+     "cpc_usd": 0.74,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Business Services",
+     "industry_ja": "ビジネスサービス",
+     "ctr": 0.0138,
+     "cpc_usd": 0.75,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Education & Instruction",
+     "industry_ja": "教育・スクール",
+     "ctr": 0.0145,
+     "cpc_usd": 0.86,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Finance & Insurance",
+     "industry_ja": "金融・保険",
+     "ctr": 0.0098,
+     "cpc_usd": 1.22,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Furniture",
+     "industry_ja": "家具",
+     "ctr": 0.0139,
+     "cpc_usd": 0.85,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Health & Fitness",
+     "industry_ja": "健康・フィットネス",
+     "ctr": 0.0163,
+     "cpc_usd": 0.8,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Home & Home Improvement",
+     "industry_ja": "住宅・リフォーム",
+     "ctr": 0.0128,
+     "cpc_usd": 0.99,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Industrial & Commercial",
+     "industry_ja": "産業・業務用",
+     "ctr": 0.0136,
+     "cpc_usd": 0.86,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Personal Services",
+     "industry_ja": "パーソナルサービス",
+     "ctr": 0.017,
+     "cpc_usd": 1.0,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Physicians & Surgeons",
+     "industry_ja": "医師・外科（医療）",
+     "ctr": 0.0083,
+     "cpc_usd": 0.82,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Real Estate",
+     "industry_ja": "不動産",
+     "ctr": 0.0168,
+     "cpc_usd": 0.91,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Restaurants & Food",
+     "industry_ja": "飲食",
+     "ctr": 0.0167,
+     "cpc_usd": 0.72,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Shopping, Collectibles & Gifts",
+     "industry_ja": "ショッピング・コレクション・ギフト",
+     "ctr": 0.0413,
+     "cpc_usd": 0.34,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Sports & Recreation",
+     "industry_ja": "スポーツ・レクリエーション",
+     "ctr": 0.026,
+     "cpc_usd": 0.41,
+     "cvr": null,
+     "cpl_usd": null
+    },
+    {
+     "industry_en": "Travel",
+     "industry_ja": "旅行",
+     "ctr": 0.0276,
+     "cpc_usd": 0.51,
+     "cvr": null,
+     "cpl_usd": null
+    }
+   ]
+  },
+  {
+   "id": "wordstream_facebook_leads_2025",
+   "media": "Facebook広告（目的: リード獲得）",
+   "region": "US",
+   "currency": "USD",
+   "period": "2024-04-01〜2025-06-30（米国 726 キャンペーン、各カテゴリ最少 2、中央値）",
+   "source_title": "Facebook Ads Benchmarks 2025 (WordStream by LocaliQ, Last Updated Sep 15, 2025)",
+   "source_url": "https://www.wordstream.com/blog/facebook-ads-benchmarks-2025",
+   "fetched_via": "web.archive.org snapshot 20251216115716",
+   "metrics_note": "全業種平均: CTR 2.59% / CPC $1.92 / CVR 7.72% / CPL $27.66。サンプルが小さい業種あり（最少2キャンペーン）。 注意: 原文表で Attorneys & Legal Services の CPL は $18.17 で Arts & Entertainment と同額（原文のまま転記、誤植の可能性）。本文テキストは Education CVR を 10.05% と書くが表は 10.08%（表の値を採用）。",
+   "rows": [
+    {
+     "industry_en": "Arts & Entertainment",
+     "industry_ja": "アート・エンターテインメント",
+     "ctr": 0.0392,
+     "cpc_usd": 1.08,
+     "cvr": 0.0934,
+     "cpl_usd": 18.17
+    },
+    {
+     "industry_en": "Attorneys & Legal Services",
+     "industry_ja": "弁護士・法律サービス",
+     "ctr": 0.0211,
+     "cpc_usd": 4.1,
+     "cvr": 0.1053,
+     "cpl_usd": 18.17
+    },
+    {
+     "industry_en": "Beauty & Personal Care",
+     "industry_ja": "美容・パーソナルケア",
+     "ctr": 0.0255,
+     "cpc_usd": 3.06,
+     "cvr": 0.0529,
+     "cpl_usd": 51.42
+    },
+    {
+     "industry_en": "Career & Employment",
+     "industry_ja": "キャリア・求人",
+     "ctr": 0.0281,
+     "cpc_usd": 0.86,
+     "cvr": 0.0577,
+     "cpl_usd": 17.64
+    },
+    {
+     "industry_en": "Dentists & Dental Services",
+     "industry_ja": "歯科",
+     "ctr": 0.0105,
+     "cpc_usd": 9.78,
+     "cvr": 0.0638,
+     "cpl_usd": 76.71
+    },
+    {
+     "industry_en": "Education & Instruction",
+     "industry_ja": "教育・スクール",
+     "ctr": 0.0186,
+     "cpc_usd": 1.65,
+     "cvr": 0.1008,
+     "cpl_usd": 28.22
+    },
+    {
+     "industry_en": "Furniture",
+     "industry_ja": "家具",
+     "ctr": 0.0148,
+     "cpc_usd": 2.18,
+     "cvr": 0.0377,
+     "cpl_usd": 40.04
+    },
+    {
+     "industry_en": "Health & Fitness",
+     "industry_ja": "健康・フィットネス",
+     "ctr": 0.0172,
+     "cpc_usd": 2.64,
+     "cvr": 0.0563,
+     "cpl_usd": 52.98
+    },
+    {
+     "industry_en": "Home & Home Improvement",
+     "industry_ja": "住宅・リフォーム",
+     "ctr": 0.0194,
+     "cpc_usd": 2.23,
+     "cvr": 0.0522,
+     "cpl_usd": 41.26
+    },
+    {
+     "industry_en": "Industrial & Commercial",
+     "industry_ja": "産業・業務用",
+     "ctr": 0.0208,
+     "cpc_usd": 1.8,
+     "cvr": 0.0934,
+     "cpl_usd": 37.34
+    },
+    {
+     "industry_en": "Personal Services",
+     "industry_ja": "パーソナルサービス",
+     "ctr": 0.0199,
+     "cpc_usd": 2.08,
+     "cvr": 0.0651,
+     "cpl_usd": 30.57,
+     "industry_en_note": "CPL 表では \"Personal Services (Weddings, Cleaners, etc.)\" と表記"
+    },
+    {
+     "industry_en": "Physicians & Surgeons",
+     "industry_ja": "医師・外科（医療）",
+     "ctr": 0.0302,
+     "cpc_usd": 2.23,
+     "cvr": 0.0451,
+     "cpl_usd": 47.47
+    },
+    {
+     "industry_en": "Real Estate",
+     "industry_ja": "不動産",
+     "ctr": 0.0375,
+     "cpc_usd": 1.57,
+     "cvr": 0.0953,
+     "cpl_usd": 16.61
+    },
+    {
+     "industry_en": "Restaurants & Food",
+     "industry_ja": "飲食",
+     "ctr": 0.0297,
+     "cpc_usd": 0.74,
+     "cvr": 0.1825,
+     "cpl_usd": 3.16
+    },
+    {
+     "industry_en": "Sports & Recreation",
+     "industry_ja": "スポーツ・レクリエーション",
+     "ctr": 0.0341,
+     "cpc_usd": 1.07,
+     "cvr": 0.0548,
+     "cpl_usd": 19.3
+    }
+   ]
+  }
+ ],
+ "notes": [
+  "どれも米国の中央値（第三者の WordStream・LocaliQ の集計）。日本の実勢とは差があるので、手元に数字が無いときの出発点にだけ使い、実績が出たら置きかえる",
+  "wordstream.com は 2026-11-19 に直接は取得できず（403）、Wayback Machine の保存版で読んだ。LocaliQ の 2026 年版は元のページから",
+  "日本の業種別の CPC・CTR・CVR・CPA で、出どころと方法が示された信頼できる数字は見つからなかった（Google の公式の日本の業種平均も無い）。日本の単価の水準は、キーワードプランナーの『ページ上部に掲載された広告の入札単価（低額帯・高額帯）』（直近 30 日の 20・80 パーセンタイル、https://support.google.com/google-ads/answer/3022575 ）と自社の実績で見る",
+  "Facebook のリード獲得の表で Attorneys の CPL が Arts と同じ 18.17 ドル（公開されたまま。誤植の可能性）",
+  "円への換算は使う側で決める（道具の既定は 1 ドル 150 円の仮置き）"
+ ],
+ "format": "sets[].rows[] に industry_en・industry_ja・ctr・cvr（0〜1）・cpc_usd・cpl_usd。数字の無い所は null"
+}

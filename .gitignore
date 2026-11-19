@@ -1,0 +1,20 @@
+# 手元の環境
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+node_modules/
+
+# 道具が書き出すもの（実績の数字・判断の記録が入る）
+out/
+log/
+
+# 鍵と設定の実ファイル（見本の *.example だけを置く）
+*.yaml
+*.yml
+!*.example
+.env
+.env.*
+*.json
+!package.json
+!kb/**/*.json

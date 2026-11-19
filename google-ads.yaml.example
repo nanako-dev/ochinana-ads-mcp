@@ -1,0 +1,10 @@
+# Google 広告 API の設定の見本。中身を自分の値に直して、このフォルダの外（手元の安全な場所）に置く。
+# 道具には環境変数 GOOGLE_ADS_CONFIGURATION_FILE_PATH でファイルの場所だけを教える。
+# このファイルの実物をリポジトリに入れない・チャットに貼らない。
+developer_token: "（Google 広告の API センターで発行した開発者トークン）"
+client_id: "（Google Cloud の OAuth の client ID）"
+client_secret: "（OAuth の client secret）"
+refresh_token: "（自分のアカウントで認可して得たリフレッシュ トークン）"
+# 管理アカウント（MCC）の下のアカウントを読むときだけ。ハイフンなしの 10 桁
+# login_customer_id: "1234567890"
+use_proto_plus: true
