@@ -350,8 +350,8 @@ def test_サーバーに道具と使い方の決まりが入っている():
     names = {t.name for t in tools}
     new = {"kb_overview", "kb_search", "kb_read", "kb_rules", "kb_logic_tree", "kb_glossary", "kb_tips", "kb_check_claim",
            "ad_text_check", "url_builder", "unit_economics", "budget_pace", "image_spec_check", "significance",
-           "list_compare", "feed_check", "kb_kata", "kb_quiz", "kb_video_guide", "video_storyboard_check", "video_spec_check", "cpa_roas_simulate", "media_plan_simulate", "report_number_check"}
-    assert new <= names and len(names) == 51 and {"report_numbers", "report_weekly_self", "report_to_html", "report_sheet_plan", "report_sheet_check"} <= names
+           "list_compare", "feed_check", "kb_kata", "kb_quiz", "kb_video_guide", "video_storyboard_check", "video_spec_check", "cpa_roas_simulate", "media_plan_simulate", "report_number_check", "report_numbers_csv"}
+    assert new <= names and len(names) == 52 and {"report_numbers", "report_weekly_self", "report_to_html", "report_sheet_plan", "report_sheet_check"} <= names
     for t in tools:
         if t.name in new:
             assert t.annotations.read_only_hint is True and t.annotations.open_world_hint is False

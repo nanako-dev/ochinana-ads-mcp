@@ -29,7 +29,7 @@ server = MCPServer(
         "budget_pace・cpa_roas_simulate・media_plan_simulate・fit_response_curve・image_spec_check・significance・data_needed・compare_variants・list_compare・feed_check）で、暗算しない。"
         "アカウントの診断 → run_checks。誰がいつ何を変えたか → get_change_history。変更の前後 → measure_effect（前後の差まで。因果と言わない）。"
         "いつもの水準から外れたもの → get_anomalies。"
-        "レポート: 週次（自分用）は report_weekly_self で材料と骨組みを取り、それ以外は先に report_numbers で数字の束を作り、文章はその数字だけで書き、表は束の「表」をそのまま貼り、"
+        "レポート: 週次（自分用）は report_weekly_self で材料と骨組みを取り、それ以外は先に report_numbers（媒体の CSV なら report_numbers_csv）で数字の束を作り、文章はその数字だけで書き、表は束の「表」をそのまま貼り、"
         "最後に report_number_check で文章の数字を突き合わせて「直すもの」を 0 件にする。"
         "動画: 作り方のノウハウ（ABCD などの中身と、企画〜入稿・検証の工程）→ kb_video_guide（工程は phase で絞る）。台本・絵コンテの見直し → video_storyboard_check"
         "（判定せず問いを返す）。動画ファイルの尺・比率・解像度 → video_spec_check。動画広告の文字数 → ad_text_check（動画の種類）。\n"
@@ -384,6 +384,27 @@ def report_numbers(customer_id: str, start: str, end: str, compare: str = "previ
                                 lag_days, max_rows, include_daily)
 
 
+@server.tool(title="CSV からレポートの数字の束を作る", annotations=LOCAL_CALC)
+@_guard
+def report_numbers_csv(csv_path: str, start: str, end: str, compare: str = "previous", compare_start: str = "",
+                       compare_end: str = "", media: str = "", columns: dict[str, str] | None = None,
+                       target_cpa_yen: float = 0, target_roas: float = 0, lag_days: int = 7) -> dict:
+    """媒体の管理画面から書き出した CSV（手元のファイル）から、report_numbers と同じ数字の束を作る。API は呼ばない。
+
+    Google 広告・Meta・LINEヤフー・ChatGPT 広告など。日別の行が要る（日付の列が無い CSV は断る）。
+    文字コード（UTF-8・Shift_JIS・UTF-16）、表題の行、合計の行、「¥」「,」「--」は道具が処理する。列の名前は日本語か英語で探す。
+    csv_path: .csv か .tsv。start / end: YYYY-MM-DD。compare: previous / week / yoy、または compare_start / compare_end。
+    今の期間と比較期間は、同じ CSV の中から日付で分ける（比較期間の行が無ければ「注意」に出す）。
+    media: 「Google 広告」「Meta」「LINEヤフー」「ChatGPT 広告」など。省くと列の名前から推定する。
+    columns: 列の名前が当たらないときの指定（例: {"cost": "ご利用金額", "date": "集計日"}）。欄は date, campaign, campaign_id,
+    media, impressions, clicks, cost, conversions, value, currency。値を "" にすると、その欄の列を使わない。
+    返す束の「CSV の読み方」に、どの列を何として読んだかが出る。文章を書く前に確かめる。
+    文章を書いたら report_number_check(text, 束ID) で突き合わせる。
+    """
+    return tools.report_numbers_csv(csv_path, start, end, compare, compare_start, compare_end, media, columns,
+                                    target_cpa_yen, target_roas, lag_days)
+
+
 @server.tool(title="文章の数字を束と突き合わせる", annotations=LOCAL_CALC)
 @_guard
 def report_number_check(text: str, bundle_id: str, allow: list[float] | None = None) -> dict:
@@ -427,23 +448,32 @@ def report_to_html(md_path: str = "", text: str = "", bundle_id: str = "", allow
     return tools.report_to_html(md_path, text, bundle_id, allow)
 
 
-@server.tool(title="レポートをスプレッドシートに書く中身を作る", annotations=LOCAL_CALC)
+@server.tool(title="レポートをスプレッドシートに書く中身を作る", annotations=READ_ONLY)
 @_guard
-def report_sheet_plan(bundle_id: str, md_path: str = "", tab: str = "") -> dict:
+def report_sheet_plan(bundle_id: str, md_path: str = "", tab: str = "", levels: bool = True, weeks: int = 8,
+                      refresh: bool = False, replace_sheet_ids: str = "", replace_named_range_ids: str = "") -> dict:
     """レポートを Google スプレッドシートに書くための値・式・書式・グラフを、束から作る（ads-mcp はシートに書かない）。
 
-    書くのは Claude が Google スプレッドシートの道具で、運用者の Drive のシートに。タブは 週次_最終日・日別データ・判断の記録・データの出どころ。
-    元のデータ（日別の行）だけを値で入れ、合計・率・差・日別・キャンペーン別は全部 SUMIFS などの式にする（数字を打ち直さない）。
-    期間は青い字の入力のセル。md_path を渡すと、いちばん大事なこと・推測・ネクストアクション・確かめていないことも文の欄に入る。
+    書くのは Claude が Google スプレッドシートの道具で、運用者の Drive のシートに。
+    タブの並び（広い順に絞る）: サマリー（数字のカード 8 つと前週比の色、日別の費用〔棒〕とコンバージョン〔線〕、今週のまとめ、
+    次にやること）→ 週別の推移（直近 weeks 週、指標ごとに前週比の行、今週の列は赤い枠）→ 日別（全部の指標、土日・暫定の日の色、
+    CV・CVR・CPA の棒グラフ）→ キャンペーン別・広告グループ別・広告別・キーワード別・検索語句別（1 対象 1 行で
+    今週｜前週｜前週比 の列を横に並べ、見出しで並べ替え・絞り込み。今週の費用の大きい順に 30 件）→ 判断の記録 → 設定（期間の入力）
+    → 日別データ → 日別データ_詳細 → データの出どころ。
+    levels=True のときは、階層ごとの日別と、週別の推移のためのキャンペーンの日別を Google 広告から読む（読むだけ。一度読んだ行は
+    束のファイルに残して使い回す。refresh=True で読み直す）。元のデータだけを値で入れ、ほかは全部 SUMIFS などの式。
+    作り直すときは replace_sheet_ids（消すタブの sheetId、カンマ区切り）と replace_named_range_ids（消す名前付き範囲の id）を渡す。
+    tab は使わない（前の版との互換のため）。
     「書き方」の順（先に送る要求 → 書く値 → あとで送る要求 → get_values → report_sheet_check）で使う。
     """
-    return tools.report_sheet_plan(bundle_id, md_path, tab)
+    return tools.report_sheet_plan(bundle_id, md_path, tab, levels, weeks, refresh, replace_sheet_ids, replace_named_range_ids)
 
 
 @server.tool(title="スプレッドシートの合計を束と照らす", annotations=LOCAL_CALC)
 @_guard
 def report_sheet_check(bundle_id: str, values: list[list[str]]) -> dict:
-    """シートに書いたあと、get_values で読んだ合計の表（指標・今・前…の行）を、束の合計と 1 ますずつ照らす。"""
+    """シートに書いたあと、get_values で読んだ表（サマリーのカードと元の数字・週別の推移・日別・階層のタブ）を、束と保存した行に
+    1 ますずつ照らす。表は見出しの行で見分けるので、確かめる範囲は見出しの行から読んで渡す。"""
     return tools.report_sheet_check(bundle_id, values)
 
 

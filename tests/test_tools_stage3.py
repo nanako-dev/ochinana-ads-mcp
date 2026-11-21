@@ -232,6 +232,28 @@ def test_カードをアカウントに照らす(tmp_path, monkeypatch):
         tools.match_card_to_account("nothing", "1112223333", run=fake_run(api_rows()))
 
 
+def test_入札の目安が返らない語は値なしにする():
+    def planner(cid, keywords, geo_id, language_id):
+        return [{"text": k, "close_variants": [], "avg_monthly_searches": 2900, "monthly": [2900] * 12,
+                 "low_bid_micros": 0, "high_bid_micros": 0} for k in keywords]
+
+    out = tools.forecast_volume("1112223333", ["ホッケー ルール"], run=fake_run(api_rows()), planner=planner, today=TODAY, record=False)
+    row = out["行"][0]
+    assert row["ページ上部に出すための入札の目安（円）"] is None  # [0, 0] と出すと「0 円」に見える
+    assert any("値を返さなかった" in n for n in row["注記"])
+    assert row["月間検索数"] == 2900 and row["見込み（月）"] is not None
+
+
+def test_入札の目安は100万分の1円を円に直す():
+    """2026-11-21 にキーワード プランナーの画面と突き合わせた値（ホッケー 東京: 画面は 2 円と 5 円）。"""
+    def planner(cid, keywords, geo_id, language_id):
+        return [{"text": k, "close_variants": [], "avg_monthly_searches": 33100, "monthly": [33100] * 12,
+                 "low_bid_micros": 1_745_491, "high_bid_micros": 4_808_937} for k in keywords]
+
+    out = tools.forecast_volume("1112223333", ["ホッケー 東京"], run=fake_run(api_rows()), planner=planner, today=TODAY, record=False)
+    assert out["行"][0]["ページ上部に出すための入札の目安（円）"] == [2, 5]
+
+
 def test_段3の問い合わせ文():
     q = gaql.keyword_share_query("2026-05-01", "2026-11-10")
     assert q.startswith("SELECT ") and "search_impression_share" in q and "negative = FALSE" in q

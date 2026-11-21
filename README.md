@@ -11,7 +11,7 @@ Google の公式の道具ではありません。
 
 知識ベースの中身を図と表で読める運用サイト: https://nanako-dev.github.io/ads-analytics-map/
 
-## できること（道具 51 個）
+## できること（道具 52 個）
 
 | まとまり | 道具 |
 |---|---|
@@ -19,12 +19,26 @@ Google の公式の道具ではありません。
 | 点検する | `run_checks`（入札と成果の設定・広告の有効性・表示オプション・キーワードと広告文のずれ・重複・検索語句・地域・LP の速度・広告ランクと予算で失った表示）、`audit_landing_page` |
 | 変化を見る | `measure_effect`（変更の前後の差を偶然の範囲と並べる。因果は判定しない）、`get_anomalies`（いつもの水準からの外れ） |
 | 見込む | `forecast_volume`・`forecast_vs_actual` |
-| レポート | `report_numbers`（数字の束: 合計・増減・要因の分解・内訳・目標と計画・成果の遅れ）、`report_number_check`（文章の数字を束と突き合わせる）、`report_weekly_self`（週次の材料と骨組み）、`report_to_html`、`report_sheet_plan`・`report_sheet_check`（スプレッドシートに書く中身と照らし。シートへは書かない） |
+| レポート | `report_numbers`（数字の束: 合計・増減・要因の分解・内訳・目標と計画・成果の遅れ）、`report_numbers_csv`（媒体の管理画面から書き出した CSV から同じ束を作る。API は呼ばない）、`report_number_check`（文章の数字を束と突き合わせる）、`report_weekly_self`（週次の材料と骨組み）、`report_to_html`、`report_sheet_plan`・`report_sheet_check`（スプレッドシートに書く中身と照らし。シートへは書かない） |
 | 計算する（外へ送らない） | `ad_text_check`・`url_builder`・`unit_economics`・`cpa_roas_simulate`・`media_plan_simulate`（月 × 媒体の予算の配分）・`fit_response_curve`（費用と成果の点に近似曲線）・`budget_pace`・`image_spec_check`・`significance`・`data_needed`・`compare_variants`・`list_compare`・`feed_check`・`video_spec_check`・`video_storyboard_check` |
 | 判断の記録 | `log_decision`・`list_decisions`（手元のファイルにだけ書く） |
 | 運用の原則 | `get_principles`（`principles.md` を読む） |
 | 知識ベース | `kb_*`・`kb_video_guide`（同梱の `kb/` を引く。下の「知識ベース」を参照） |
 | 知見カード | `get_new_intel`・`search_cards`・`match_card_to_account`（カードは同梱していない。`ADS_INTEL_DIR` で指す） |
+
+### レポートのスプレッドシート版
+
+`report_sheet_plan` は、Google スプレッドシートに送る要求（タブ・値と式・書式・グラフ）を作るだけです。シートへ書くのは、AI が別の道具（Google スプレッドシートの道具）で行います。
+
+- タブの並び: サマリー → 週別の推移 → 日別 → キャンペーン別 → 広告グループ別 → 広告別 → キーワード別 → 検索語句別 → 判断の記録 → 設定 → 日別データ → 日別データ_詳細 → データの出どころ。
+- 期間は「設定」タブの日付で決まり、ほかのタブの数字は「日別データ」を数える式です。
+- 週別の推移は直近 8 週を 1 週 1 列で並べ、前週比の行を付けます。階層のタブは 1 対象 1 行で、今週・前週・前週比を横に並べます。
+- 階層のタブと週別の推移のために、広告グループ・広告・キーワード・検索語句とキャンペーンの日別の実績を Google 広告から読みます（読むだけ）。CSV の束では `levels=False` にします。
+- `report_sheet_check` で、シートの表示を束と 1 ますずつ照らします。
+
+### 日別データを毎日足すスクリプト（下書き）
+
+`スクリプト/日別データを書き出す.js` は、Google 広告スクリプトの下書きです。キャンペーン別・日別の実績を読むだけで、運用シートの「日別データ」タブの A〜I 列に書きます。広告アカウントを変える呼び出しはありません。`DRY_RUN` の既定は `true`（書かずにログに出すだけ）です。入れ方は `スクリプト/入れ方.md` にあります。入れる・認可する・予約するのは、アカウントの持ち主本人です。
 
 ## 外へ送るもの
 

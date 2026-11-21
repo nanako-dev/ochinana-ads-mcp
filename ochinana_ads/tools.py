@@ -643,8 +643,12 @@ def forecast_volume(customer_id: str, keywords, daily_budget_yen: Optional[float
             item = volumes[n]
             vol = forecast.volume_range(item["avg_monthly_searches"], item.get("monthly"))
             source = "キーワードプランナー（Google 広告 API）"
-            extra = {"ページ上部に出すための入札の目安（円）": [convert.micros_to_yen(item["low_bid_micros"]),
-                                                    convert.micros_to_yen(item["high_bid_micros"])]}
+            low, high = item.get("low_bid_micros") or 0, item.get("high_bid_micros") or 0
+            if low or high:
+                extra = {"ページ上部に出すための入札の目安（円）": [convert.micros_to_yen(low), convert.micros_to_yen(high)]}
+            else:  # Google が値を返さない語がある（0 円という意味ではない）
+                extra = {"ページ上部に出すための入札の目安（円）": None}
+                notes.append("ページ上部に出すための入札の目安は、キーワードプランナーが値を返さなかった（0 円という意味ではない）。")
             if vol["recent3"] is not None and vol["mid"] > 0 and not 0.5 <= vol["recent3"] / vol["mid"] <= 2:
                 notes.append("直近 3 か月の平均が年平均の半分未満か 2 倍超。年平均をそのまま信じない。")
         else:
@@ -1163,6 +1167,65 @@ def report_numbers(customer_id: str, start: str, end: str, compare: str = "previ
     return bundle
 
 
+from . import csvin  # noqa: E402
+
+
+def report_numbers_csv(csv_path: str, start: str, end: str, compare: str = "previous", compare_start: str = "",
+                       compare_end: str = "", media: str = "", columns=None, target_cpa_yen=None, target_roas=None,
+                       lag_days: int = report.LAG_DAYS, today: Optional[_date] = None) -> dict:
+    """媒体の管理画面から書き出した CSV（手元のファイル）から、report_numbers と同じ束を作る。API は呼ばない。"""
+    gaql.validate_period(start, end)
+    lag = _int_in("lag_days（成果の遅れとして見る日数）", lag_days, 0, 30)
+    t_cpa = _opt_num("target_cpa_yen（目標のコンバージョン単価）", target_cpa_yen)
+    t_roas = _opt_num("target_roas（目標の ROAS、%）", target_roas)
+    today = today or _date.today()
+    s, e = _date.fromisoformat(start), _date.fromisoformat(end)
+    if e >= today:
+        raise ValueError(f"終了日は昨日（{(today - _timedelta(days=1)).isoformat()}）まで。今日の分はまだ途中")
+    if report.period_days(s, e) > 366:
+        raise ValueError("期間は 366 日まで")
+    if compare_start or compare_end:
+        gaql.validate_period(compare_start, compare_end)
+        cs, ce = _date.fromisoformat(compare_start), _date.fromisoformat(compare_end)
+        label = "日付で指定"
+    else:
+        cs, ce, label = report.compare_period(s, e, str(compare).strip())
+    if ce >= s and cs <= e:
+        raise ValueError("比較期間が今の期間と重なっている")
+    got = csvin.read(csv_path, media, columns)
+    rows, how = got["行"], got["読み方"]
+    cur = [r for r in rows if s.isoformat() <= r["date"] <= e.isoformat()]
+    prev = [r for r in rows if cs.isoformat() <= r["date"] <= ce.isoformat()]
+    if not cur:
+        raise ValueError(f"今の期間（{s}〜{e}）の行が CSV に無い。CSV の日付は {how['日付の範囲']}")
+    medias = sorted({r["media"] for r in cur + prev})
+    head = {
+        "対象アカウント": f"CSV: {how['ファイル']}（{'・'.join(medias)}）",
+        "期間": f"今: {s}〜{e}（{report.period_days(s, e)} 日）／比較: {cs}〜{ce}（{report.period_days(cs, ce)} 日、{label}）。"
+              "CSV の日付のまま（媒体の管理画面のタイムゾーン）",
+        "単位": "金額は円、率は %、率の差は pt。内訳はキャンペーンごと",
+    }
+    bundle, nums = report.build(cur, prev, start=s, end=e, cstart=cs, cend=ce, compare_label=label, today=today,
+                                lag_days=lag, target_cpa=t_cpa, target_roas=t_roas, max_rows=report.MAX_BREAKDOWN,
+                                source=f"CSV（{how['ファイル']}。手元のファイルを読むだけ）", head=head)
+    notes = list(bundle["注意"])
+    if not prev:
+        notes.insert(0, f"比較期間（{cs}〜{ce}）の行が CSV に無い。前の値は全部 0 で、差と増減率は比べられない。"
+                        f"CSV の日付は {how['日付の範囲']}。比べるなら、比較期間も入るように書き出し直す。")
+    have = {r["date"] for r in cur}
+    gap = [d.isoformat() for d in report.date_list(s, e) if d.isoformat() not in have]
+    if gap:
+        notes.append(f"今の期間のうち {len(gap)} 日（{gap[0]} など）は CSV に行が無い。配信が無かった日か、書き出しの期間の外。0 として数えた。")
+    notes.append("CSV の数字は書き出した時点のもの。成果は後から足されるので、同じ期間でも API や後の書き出しと合わないことがある。")
+    notes.append("スプレッドシートにするときは report_sheet_plan(束ID, levels=False)。広告グループ別などの階層のタブは API の束だけ。")
+    notes.extend(how["注意"])
+    bundle["注意"] = notes
+    bundle["CSV の読み方"] = how
+    path = numcheck.save_bundle(bundle, nums, rows=sorted(prev + cur, key=lambda r: (r["date"], r["name"])))
+    bundle["保存先"] = str(path)
+    return bundle
+
+
 def report_number_check(text: str, bundle_id: str, allow=None) -> dict:
     if not str(text or "").strip():
         raise ValueError("text（確かめる文章）が空")
@@ -1437,11 +1500,45 @@ import re  # noqa: E402
 from . import sheet as _sheet  # noqa: E402
 
 
-def report_sheet_plan(bundle_id: str, md_path: str = "", tab: str = "") -> dict:
+DETAIL_ORDER = ("ad_group", "ad", "keyword", "search_term")
+
+
+def _detail_rows(cid: str, cond: dict, run: Search) -> List[dict]:
+    """階層ごとの日別の行（今の期間と比べる期間）。読むだけ。"""
+    out = []
+    for period in (cond["今の期間"], cond["比較期間"]):
+        lo, hi = period.split("〜")
+        for kind in DETAIL_ORDER:
+            out += fetch.detail_daily(cid, kind, lo, hi, run)
+    return out
+
+
+def _id_list(label: str, v, as_int: bool) -> list:
+    if v in (None, "", [], ()):
+        return []
+    items = v if isinstance(v, (list, tuple)) else re.split(r"[,\s]+", str(v).strip())
+    out = []
+    for x in items:
+        t = str(x).strip()
+        if not t:
+            continue
+        if not t.isdigit():
+            raise ValueError(f"{label}は数字の id を並べて渡す（受け取った値: {x!r}）")
+        out.append(int(t) if as_int else t)
+    return out
+
+
+def report_sheet_plan(bundle_id: str, md_path: str = "", tab: str = "", levels: bool = True, weeks: int = 8,
+                      refresh: bool = False, replace_sheet_ids="", replace_named_range_ids="",
+                      run: Optional[Search] = None) -> dict:
+    """tab は版 0.16.0 から使わない（タブの名前は決まった並び）。呼び方を変えないために残している。"""
     data = numcheck.load_file(str(bundle_id).strip())
     rows = data.get("元の行")
     if not rows:
         raise ValueError(f"束 {bundle_id} に元の行が無い（版 0.12.0 より前の束）。report_numbers か report_weekly_self を呼び直す")
+    weeks = _int_in("weeks（週別の推移の週の数）", weeks, 0, 26)
+    replace_sheets = _id_list("replace_sheet_ids（消すタブの sheetId）", replace_sheet_ids, True)
+    replace_named = _id_list("replace_named_range_ids（消す名前付き範囲の id）", replace_named_range_ids, False)
     md = ""
     if md_path:
         p = Path(md_path).expanduser()
@@ -1450,14 +1547,36 @@ def report_sheet_plan(bundle_id: str, md_path: str = "", tab: str = "") -> dict:
         md = p.read_text(encoding="utf-8")
     b = data["束"]
     cid = re.match(r"\d+", str(b.get("対象アカウント", "")))
+    e = _date.fromisoformat(b["条件"]["今の期間"].split("〜")[1])
     dec = []
     if cid:
-        e = _date.fromisoformat(b["条件"]["今の期間"].split("〜")[1])
         dec = [x for x in decisions.read_all() if x.get("アカウント") == cid.group(0)]
         dec = [{"日": x["日時"][:10], "判断": x.get("判断", ""), "誰の判断": x.get("誰の判断", ""), "対象": x.get("対象", ""),
                 "評価の時期": "", "記録の id": x.get("id", "")} for x in dec if x.get("日時", "")[:10] <= e.isoformat()]
     run_at = _datetime.fromtimestamp(numcheck.bundle_path(bundle_id).stat().st_mtime).astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    out = _sheet.plan(b, rows, md=md, tab=tab, decisions=dec, run_at=run_at)
+    details, trend, changed = None, None, False
+    if levels:
+        if not cid:
+            raise ValueError("束にアカウントの ID が無いので、階層ごとの行を読めない（levels=False なら階層のタブを作らない）")
+        acct_id = gaql.normalize_customer_id(cid.group(0))
+        # 一度読んだ行は束のファイルに残っているので、それを使う（シートの数字を、前に照らした数字とそろえる）。refresh=True で読み直す
+        details = None if refresh else data.get("詳細の行")
+        if details is None:
+            details = _detail_rows(acct_id, b["条件"], run or _search)
+            data["詳細の行"] = details
+            changed = True
+        if weeks:
+            span = f"{(e - _timedelta(days=7 * weeks - 1)).isoformat()}〜{e.isoformat()}"
+            trend = None if refresh or data.get("推移の期間") != span else data.get("推移の行")
+            if trend is None:
+                lo, hi = span.split("〜")
+                trend = _api_rows(fetch.daily(acct_id, "campaign", lo, hi, run or _search), "campaign")
+                data["推移の行"], data["推移の期間"] = trend, span
+                changed = True
+    if changed:
+        numcheck.bundle_path(bundle_id).write_text(_json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    out = _sheet.plan(b, rows, md=md, decisions=dec, run_at=run_at, details=details, trend=trend, weeks=weeks or 8,
+                      replace_sheets=replace_sheets, replace_named=replace_named)
     return {"対象アカウント": b.get("対象アカウント", "—"), "期間": b.get("期間", "—"),
             "単位": "Google スプレッドシートに書く値・式・書式（ads-mcp はシートに書かない）", "束ID": bundle_id, **out}
 
@@ -1466,5 +1585,9 @@ def report_sheet_check(bundle_id: str, values) -> dict:
     data = numcheck.load_file(str(bundle_id).strip())
     if not isinstance(values, list) or not all(isinstance(r, list) for r in values):
         raise ValueError("values は get_values の values（行の配列）をそのまま渡す")
-    return {"対象アカウント": data["束"].get("対象アカウント", "—"), "期間": data["束"].get("期間", "—"),
-            "単位": "合計の表の 1 ます ごと", **_sheet.check(data["束"], values)}
+    b = data["束"]
+    base = data.get("元の行") or []
+    details = (data.get("詳細の行") or []) + _sheet.campaign_details(base, b["条件"])
+    all_rows = _sheet.merge_rows(base, data.get("推移の行"), b["条件"])
+    return {"対象アカウント": b.get("対象アカウント", "—"), "期間": b.get("期間", "—"),
+            "単位": "表の 1 ます ごと", **_sheet.check(b, values, details, all_rows)}

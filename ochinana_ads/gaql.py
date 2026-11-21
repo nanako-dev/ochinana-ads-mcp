@@ -390,3 +390,24 @@ def daily_query(level: str, start: str, end: str, campaign_id: str = "") -> str:
         "SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, "
         f"campaign_budget.amount_micros, segments.date, {METRICS} FROM campaign WHERE {where}"
     )
+
+
+DETAIL_KINDS = {"ad_group": "広告グループ", "ad": "広告", "keyword": "キーワード", "search_term": "検索語句"}
+
+
+def detail_daily_query(kind: str, start: str, end: str) -> str:
+    """広告グループ・広告・キーワード・検索語句の日別の実績（レポートのスプレッドシートの元の行）。読むだけ。"""
+    if kind not in DETAIL_KINDS:
+        raise ValueError(f"階層は {' / '.join(DETAIL_KINDS)} のどれか（受け取った値: {kind!r}）")
+    where = _between(start, end)
+    head = "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, segments.date, "
+    if kind == "ad_group":
+        return f"{head}{METRICS} FROM ad_group WHERE {where}"
+    if kind == "ad":
+        return (f"{head}ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.ad.responsive_search_ad.headlines, "
+                f"{METRICS} FROM ad_group_ad WHERE {where}")
+    if kind == "keyword":
+        return (f"{head}ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, "
+                f"ad_group_criterion.keyword.match_type, {METRICS} FROM keyword_view "
+                f"WHERE {where} AND ad_group_criterion.negative = FALSE")
+    return f"{head}search_term_view.search_term, {METRICS} FROM search_term_view WHERE {where}"

@@ -299,3 +299,36 @@ def daily(cid: str, level: str, start: str, end: str, run: Search, campaign_id: 
                      budget_micros=int(r.campaign_budget.amount_micros))
         out.append(d)
     return out
+
+
+AD_TYPE_JA = {"RESPONSIVE_SEARCH_AD": "レスポンシブ検索広告", "EXPANDED_TEXT_AD": "拡張テキスト広告",
+              "RESPONSIVE_DISPLAY_AD": "レスポンシブ ディスプレイ広告", "VIDEO_AD": "動画広告"}
+
+
+def detail_daily(cid: str, kind: str, start: str, end: str, run: Search) -> List[dict]:
+    """階層ごとの日別の行を、レポートの共通の形（report.py の冒頭）に。費用は円。"""
+    from . import convert
+    out = []
+    level = gaql.DETAIL_KINDS[kind]
+    for r in run(cid, gaql.detail_daily_query(kind, start, end)):
+        d = {"date": str(r.segments.date), "media": "Google 広告", "level": level, "campaign": r.campaign.name,
+             "ad_group": r.ad_group.name, "sub": ""}
+        if kind == "ad_group":
+            d.update(key=str(r.ad_group.id), name=r.ad_group.name)
+        elif kind == "ad":
+            a = r.ad_group_ad.ad
+            heads = [h.text for h in getattr(a.responsive_search_ad, "headlines", [])][:1]
+            d.update(key=str(a.id), name=f"広告 {a.id}" + (f"（{heads[0]}）" if heads else ""),
+                     sub=convert.ja(AD_TYPE_JA, a.type_.name if hasattr(a, "type_") else a.type.name))
+        elif kind == "keyword":
+            c = r.ad_group_criterion
+            d.update(key=f"{r.ad_group.id}:{c.criterion_id}", name=c.keyword.text,
+                     sub=convert.ja(convert.MATCH_JA, c.keyword.match_type.name))
+        else:
+            t = r.search_term_view.search_term
+            d.update(key=f"{r.ad_group.id}:{t}", name=t)
+        m = _metrics(r.metrics)
+        d.update(impressions=m["impressions"], clicks=m["clicks"], cost=m["cost_micros"] / 1_000_000,
+                 conversions=m["conversions"], value=m["conversions_value"])
+        out.append(d)
+    return out
