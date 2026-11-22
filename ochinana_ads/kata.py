@@ -50,7 +50,7 @@ def _doc(nn: str) -> dict:
     docs = kb.load_all()
     hits = kb.resolve(f"型{nn}", docs)
     if not hits:
-        raise kb.KBError(f"運用の型/{nn}_*.md が知識ベースに無い（運用の型/ フォルダを確かめる）")
+        raise kb.KBError(f"運用の型/{nn}_*.md が知識ベースに無い（運用の型/ フォルダを確かめる）" + kb.not_in_media("kb_read(file='28')"))
     if len(hits) > 1:
         raise kb.KBAmbiguous(f"型{nn}", hits)
     return hits[0]

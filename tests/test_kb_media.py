@@ -89,3 +89,18 @@ def test_実物の他媒体を読める(m, monkeypatch):
         assert any(n.startswith("00_") for n in names) and any(n.startswith("28_") for n in names)
         assert kb.rules("入札")["行"]
         assert kb.read("00", toc_only=True)
+
+
+def test_ほかの道具も媒体を渡せて_無い種類は無いと返す(media):
+    (media / "Meta広告の基礎" / "ロジックツリー").mkdir()
+    with kb.use_media("meta"):
+        with pytest.raises(kb.KBError, match="Meta 広告にはまだ無い"):
+            kb.glossary("CPA")
+        with pytest.raises(kb.KBError, match="Meta 広告にはまだ無い"):
+            kb.tips("入札")
+        from ochinana_ads import kata
+        with pytest.raises(kb.KBError, match="Meta 広告にはまだ無い"):
+            kata.kata("規換")
+    for name in ("kb_logic_tree", "kb_glossary", "kb_tips", "kb_kata"):
+        import inspect
+        assert "media" in inspect.signature(getattr(server, name)).parameters

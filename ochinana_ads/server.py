@@ -25,7 +25,7 @@ server = MCPServer(
         "2. 問いの型ごとの引き方: できる／できない・上限 → kb_rules。なぜ → kb_read（00 と該当メモ）。"
         "指標が動いた → kb_logic_tree。次に何をするか → kb_kata（kind='状態' で決定木の問いに答えて状態を決め、"
         "state='状N' でその状態の規則を引く）。やり方の助言 → kb_tips（仮説と断る）。主張の真偽 → kb_check_claim。"
-        "用語 → kb_glossary。語で広く → kb_search。Meta・LINEヤフー・ChatGPT の広告 → kb_overview・kb_search・kb_read・kb_rules・kb_check_claim・kb_quiz に media（meta／lineyahoo／chatgpt）を付ける（この 3 媒体は API でつながっていない。数字は管理画面の CSV から report_numbers_csv）。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
+        "用語 → kb_glossary。語で広く → kb_search。Meta・LINEヤフー・ChatGPT の広告 → kb_* に media（meta／lineyahoo／chatgpt）を付ける（その媒体に無い種類のメモは、無いと返る）（この 3 媒体は API でつながっていない。数字は管理画面の CSV から report_numbers_csv）。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
         "budget_pace・cpa_roas_simulate・media_plan_simulate・fit_response_curve・image_spec_check・significance・data_needed・compare_variants・list_compare・feed_check）で、暗算しない。"
         "アカウントの診断 → run_checks。誰がいつ何を変えたか → get_change_history。変更の前後 → measure_effect（前後の差まで。因果と言わない）。"
         "いつもの水準から外れたもの → get_anomalies。"
@@ -569,37 +569,47 @@ def kb_rules(query: str = "", target: str = "", file: str = "", mark: str = "", 
 @server.tool(title="指標が動いた原因の木を引く", annotations=LOCAL_CALC)
 @_guard
 def kb_logic_tree(metric: str = "", direction: str = "", id: str = "", max_results: int = 15,
-                  max_chars: int = 9000) -> dict:
-    """指標と向きから、ロジックツリーの要因の行（要因・なぜ・確かめ方・打ち手・副作用・根拠）を返す。Google 広告だけ。
+                  max_chars: int = 9000, media: str = "") -> dict:
+    """指標と向きから、ロジックツリーの要因の行（要因・なぜ・確かめ方・打ち手・副作用・根拠）を返す。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。その媒体にこの種類のメモ（フォルダ）があるときに引ける（無ければ、無いと返す）。
+    2026-11-22 時点で、ロジックツリーがあるのは Google と Meta。
 
     metric: 指標の名前か略号（例 クリック単価、CPC、コンバージョン率、獲得単価、ROAS）。用語集の別名でも引ける。
     direction: 上（上がった・増えた）／下（下がった・減った）。検索語句の質は 悪／良。空なら両方。
     id: 行の番号（例 CPC-上-07）で 1 行を引く。metric を空にすると、引ける指標の一覧を返す。
     「まず切り分ける順番」の節も一緒に返す。根拠に経験則・推測を含む行は仮説として扱う。
     """
-    return kb.logic_tree(metric, direction, id, max_results, max_chars)
+    with kb.use_media(media):
+        return kb.logic_tree(metric, direction, id, max_results, max_chars)
 
 
 @server.tool(title="用語を引く", annotations=LOCAL_CALC)
 @_guard
-def kb_glossary(term: str, max_results: int = 10) -> dict:
-    """用語集（33）から用語を引く。旧称・略語・英語からも引ける（例 部分一致、ROAS、目標アクション単価）。Google 広告だけ
-    （ほかの媒体の用語は kb_search に media を付けて探す）。
+def kb_glossary(term: str, max_results: int = 10, media: str = "") -> dict:
+    """用語集（33）から用語を引く。旧称・略語・英語からも引ける（例 部分一致、ROAS、目標アクション単価）。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。その媒体にこの種類のメモ（フォルダ）があるときに引ける（無ければ、無いと返す）。
+    用語集が無い媒体の用語は、kb_search に media を付けて探す。
 
     意味・間違えやすい点・くわしく書いてあるメモを返す。名前が変わった用語の対応表も見る。
     """
-    return kb.glossary(term, max_results)
+    with kb.use_media(media):
+        return kb.glossary(term, max_results)
 
 
 @server.tool(title="Tips を引く", annotations=LOCAL_CALC)
 @_guard
-def kb_tips(query: str = "", scene: str = "", file: str = "", max_results: int = 10) -> dict:
-    """実務家などの Tips（tips/T1〜）を、語や場面で引く。返す行はすべて「仮説」として扱う。Google 広告だけ。
+def kb_tips(query: str = "", scene: str = "", file: str = "", max_results: int = 10, media: str = "") -> dict:
+    """実務家などの Tips（tips/T1〜）を、語や場面で引く。返す行はすべて「仮説」として扱う。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。その媒体にこの種類のメモ（フォルダ）があるときに引ける（無ければ、無いと返す）。
 
     query: 行のどこかに含む語（空白区切りで AND）。scene: 「場面」の列に含む語。file: T1 などで絞る。
     根拠の種類・誰の主張か・時期・条件と反対意見を一緒に返す。
     """
-    return kb.tips(query, scene, file, max_results)
+    with kb.use_media(media):
+        return kb.tips(query, scene, file, max_results)
 
 
 @server.tool(title="主張を知識ベースに照らす", annotations=LOCAL_CALC)
@@ -619,9 +629,12 @@ def kb_check_claim(claim: str, max_results: int = 15, media: str = "") -> dict:
 
 @server.tool(title="運用の型を引く（規則・しきい値・式・状態）", annotations=LOCAL_CALC)
 @_guard
-def kb_kata(query: str = "", kind: str = "", state: str = "", max_results: int = 20, max_chars: int = 9000) -> dict:
-    """「次に何をするか」を、運用の型（運用の型/）から引く。判定はしない（問いと規則を並べる）。Google 広告だけ
-    （ほかの媒体は kb_read(file='28', media=…) と 36 の当てはめを読む）。
+def kb_kata(query: str = "", kind: str = "", state: str = "", max_results: int = 20, max_chars: int = 9000,
+            media: str = "") -> dict:
+    """「次に何をするか」を、運用の型（運用の型/）から引く。判定はしない（問いと規則を並べる）。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。その媒体にこの種類のメモ（フォルダ）があるときに引ける（無ければ、無いと返す）。
+    運用の型/ フォルダが無い媒体は、kb_read(file='28', media=…) と 36 の当てはめを読む。
 
     kind を省くと query の番号から決める。何も渡さないと引き方と分類の一覧を返す。
     - 規則（型08）: query に 規換-15（番号）／規換（分類）／語（条件・行動の部分一致、空白区切りは AND）。
@@ -633,7 +646,8 @@ def kb_kata(query: str = "", kind: str = "", state: str = "", max_results: int =
       state を付けると、その状態に行き着く問いと打ち手。
     - 裁定（型92）／未確認（型93）: kind='裁定' か '未確認'。裁定 3、D2 か語。
     """
-    return kata.kata(query, kind, state, max_results, max_chars)
+    with kb.use_media(media):
+        return kata.kata(query, kind, state, max_results, max_chars)
 
 
 @server.tool(title="理解度テストを引く", annotations=LOCAL_CALC)

@@ -79,7 +79,6 @@ _MEDIA_ALIAS_SRC = {
 }
 MEDIA_ALIASES = {unicodedata.normalize("NFKC", a).casefold().replace(" ", "").replace("!", ""): k
                  for k, al in _MEDIA_ALIAS_SRC.items() for a in al}
-GOOGLE_ONLY = "この道具は Google 広告の知識ベースだけを引く（運用の型/・ロジックツリー/・tips/・用語集は Google にしかない）"
 _MEDIA: "contextvars.ContextVar[str]" = contextvars.ContextVar("kb_media", default="google")
 
 
@@ -126,6 +125,14 @@ def media_list() -> List[dict]:
         out.append({"指定": key, "媒体": MEDIA_LABEL[key], "ある": ok,
                     "メモの数": sum(1 for f in p.rglob("*.md") if not any(x.startswith((".", "_")) for x in f.relative_to(p).parts)) if ok else 0})
     return out
+
+
+def not_in_media(alt: str) -> str:
+    """Google 以外で、その種類のメモがまだ無いときの添え書き。"""
+    key = _MEDIA.get()
+    if key == "google":
+        return ""
+    return f"（{MEDIA_LABEL[key]}にはまだ無い。{alt} に media='{key}' を付けて探す）"
 
 
 def kb_dir() -> Path:
@@ -524,7 +531,8 @@ def first_reads(docs: List[dict]) -> Tuple[List[dict], List[str]]:
             out[0]["読むには"] = f"kb_read(file='{core[0]['ref']}', media='{_MEDIA.get()}')"
         if not core:
             notes.append("90_核となる理解.md はまだ無い（書かれたら、ここに出る）。代わりに 00 から読む。")
-        notes.append("運用の型は 28_運用の型 と 36_運用の型_◯◯への当てはめ を kb_read で読む（kb_kata は Google だけ）。")
+        if not any(d["kind"] == KATA for d in docs):
+            notes.append("運用の型/ フォルダはまだ無い。運用の型は 28_運用の型 と 36_運用の型_◯◯への当てはめ を kb_read で読む。")
         return out, notes
     if not core:
         notes.append("90_核となる理解.md はまだ無い（書かれたら、ここに出る）。代わりに 運用の型/00 と 00 から読む。")
@@ -575,7 +583,7 @@ def overview(kind: str = "", max_chars: int = 30000) -> dict:
         "使い方": "語で探す kb_search／節を読む kb_read（直下のメモは番号 12、運用の型/ は 型12）／できる・できない kb_rules／"
                 "指標が動いた kb_logic_tree／次に何をするか kb_kata（状態の判定 → 規則・しきい値・式）／"
                 "理解度テストと よくある誤答 kb_quiz／用語 kb_glossary／実務家の Tips kb_tips。"
-                "ほかの媒体は media（meta／lineyahoo／chatgpt）を付ける（kb_overview・kb_search・kb_read・kb_rules・kb_check_claim・kb_quiz）。",
+                "ほかの媒体は media（meta／lineyahoo／chatgpt）を付ける（どの kb_* でも。その媒体に無い種類のメモは、無いと返る）。",
         "注記": ["種類「運用の型（体系）」は 運用の型/ フォルダ（型00〜型12、付録 型90〜）。"
                 "種類「運用の型」は名前に「運用の型」を含む直下のメモ（28・35〜37）。",
                 "番号が重なるファイル（94_裏取りの記録_* など）は、番号では 1 本に決まらない。「番号」の列の名前で指定する。",
@@ -1229,7 +1237,7 @@ def glossary(term: str, max_results: int = 10, max_chars: int = DEFAULT_CHARS) -
     docs = load_all()
     rows = _glossary_rows(docs)
     if not rows:
-        raise KBError("用語集（題名に「用語集」を含むメモ）が知識ベースに見つからない")
+        raise KBError("用語集（題名に「用語集」を含むメモ）が知識ベースに見つからない" + not_in_media("kb_search"))
     hits = []
     for d, u in rows:
         c = u["cells"]
@@ -1286,6 +1294,8 @@ def tips(query: str = "", scene: str = "", file: str = "", max_results: int = 10
         raise KBError("query（語）か scene（場面）のどちらかを渡す")
     max_results = _clamp(max_results, 10, MAX_RESULTS)
     docs = select(load_all(), "Tips", file)
+    if not docs and not file and _MEDIA.get() != "google":
+        raise KBError("tips/ のメモが知識ベースに無い" + not_in_media("kb_search"))
     hits = []
     for d, u in tip_rows(docs):
         if sc and sc not in norm(_cell(u["cells"], "場面")):

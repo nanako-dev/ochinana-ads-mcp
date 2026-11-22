@@ -22,7 +22,7 @@ Google の公式の道具ではありません。知識ベースの中身を図�
 | 媒体 | 実績を読む | レポート | 知識ベース |
 |---|---|---|---|
 | Google 広告 | **API で読む**（読むだけ） | API の数字から作る | あり（いちばん厚い。運用の型・ロジックツリー・Tips・用語集つき） |
-| Meta 広告 | API ではつながっていない | 管理画面から書き出した CSV から作る | あり（`media="meta"`） |
+| Meta 広告 | API ではつながっていない | 管理画面から書き出した CSV から作る | あり（`media="meta"`。ロジックツリーつき） |
 | LINEヤフー広告 | 同上 | 同上 | あり（`media="lineyahoo"`） |
 | ChatGPT の広告 | 同上 | 同上 | あり（`media="chatgpt"`） |
 
@@ -42,7 +42,7 @@ Google の公式の道具ではありません。知識ベースの中身を図�
 | 計算する（外へ送らない） | `ad_text_check`・`url_builder`・`unit_economics`・`cpa_roas_simulate`・`media_plan_simulate`・`fit_response_curve`・`budget_pace`・`image_spec_check`・`significance`・`data_needed`・`compare_variants`・`list_compare`・`feed_check`・`video_spec_check`・`video_storyboard_check` |
 | 判断の記録 | `log_decision`・`list_decisions`（手元のファイルにだけ書く） |
 | 運用の原則 | `get_principles`（`principles.md` を読む） |
-| 知識ベース | `kb_overview`・`kb_search`・`kb_read`・`kb_rules`・`kb_check_claim`・`kb_quiz`（`media` で媒体を選ぶ）、`kb_kata`・`kb_logic_tree`・`kb_tips`・`kb_glossary`・`kb_video_guide`（Google 広告だけ） |
+| 知識ベース | `kb_overview`・`kb_search`・`kb_read`・`kb_rules`・`kb_check_claim`・`kb_quiz`・`kb_logic_tree`・`kb_kata`・`kb_tips`・`kb_glossary`（`media` で媒体を選ぶ。その媒体にまだ無い種類のメモは、無いと返す）、`kb_video_guide`（Google 広告の動画） |
 | 知見カード | `get_new_intel`・`search_cards`・`match_card_to_account`（カードは同梱していない。`ADS_INTEL_DIR` で指す） |
 
 ## 要るもの
