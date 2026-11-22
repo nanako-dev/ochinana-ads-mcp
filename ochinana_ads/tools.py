@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional  # noqa: F401
 
 from . import convert, gaql
-from .client import SetupError, explain_api_error, load_client, search
+from .client import SetupError, accessible_customer_ids, credentials_file_status, explain_api_error, load_client, search
 from .config import (
     ALLOWED_CUSTOMER_IDS,
     DEFAULT_TOP_N,
@@ -124,6 +124,82 @@ def list_accounts(run: Optional[Search] = None) -> dict:
         out["読めなかったアカウント"] = failed
     out["道具の版"] = f"{VERSION}（{UPDATED}）"
     return out
+
+
+def check_connection(run: Optional[Search] = None, accessible: Optional[Callable[[], List[str]]] = None) -> dict:
+    """つないだあとの確かめ。設定 → API → 許可リストの各アカウント、の順に見る。
+
+    許可リストに無いアカウントの ID と名前は返さない（同じログインで勤務先や取引先のアカウントにも届くことがあるため。
+    一覧は、本人が端末で `connect check` を動かして見る）。
+    """
+    run = run or _search
+    steps: List[dict] = []
+    out: dict = {"対象アカウント": f"許可リストの {len(ALLOWED_CUSTOMER_IDS)} 件", "期間": "指定なし（いまの設定）",
+                 "単位": "確かめの段ごと", "道具の版": f"{VERSION}（{UPDATED}）"}
+    f = credentials_file_status()
+    steps.append({"段": "1. 認証ファイル", "結果": "よい" if f.get("ファイル") == "ある" else "直す", **f})
+    if f.get("ファイル") != "ある":
+        out["段"] = steps
+        out["結論"] = "認証ファイルが無いので、ここで止めた。README の「入れ方」の 5〜7 を見る。"
+        return out
+    direct: Optional[set] = None
+    try:
+        if accessible is None:
+            global _client
+            if _client is None:
+                _client = load_client()
+            ids = accessible_customer_ids(_client)
+        else:
+            ids = accessible()
+        direct = set(ids)
+        steps.append({"段": "2. Google 広告 API", "結果": "よい",
+                      "このログインで直接読めるアカウント": f"{len(ids)} 件（ID と名前はここに出さない。本人が端末で connect check を動かすと見られる）"})
+    except SetupError:
+        raise
+    except Exception as ex:
+        reason = explain_api_error(ex) if getattr(ex, "failure", None) is not None else _auth_reason(ex)
+        steps.append({"段": "2. Google 広告 API", "結果": "直す", "理由": reason})
+        out["段"] = steps
+        out["結論"] = "API につながらないので、ここで止めた。理由の「直し方」を見る。"
+        return out
+    if not ALLOWED_CUSTOMER_IDS:
+        steps.append({"段": "3. 許可リスト", "結果": "直す",
+                      "理由": "環境変数 ADS_ALLOWED_CUSTOMER_IDS が空。本人が端末で connect check を動かし、読むアカウントを選んで出た 1 行を設定に足す"})
+        out["段"] = steps
+        out["結論"] = "API にはつながる。読むアカウントがまだ決まっていない。"
+        return out
+    rows = []
+    for cid in ALLOWED_CUSTOMER_IDS:
+        r: dict = {"ID": cid}
+        try:
+            acct = _account(cid, run)
+            r.update({"結果": "読める", "名前": acct["名前"], "通貨": acct["通貨"], "タイムゾーン": acct["タイムゾーン"],
+                      "マネージャー": "はい" if acct["管理アカウント"] else "いいえ"})
+            if acct["通貨"] and acct["通貨"] != "JPY":
+                r["注意"] = f"通貨が {acct['通貨']}。この道具は円のアカウント向けで、実績を読む道具は円以外のアカウントを断る"
+            if acct["管理アカウント"]:
+                r["注意"] = "マネージャーのアカウントには実績が無い。配下のアカウントの ID を許可リストに入れる"
+        except (ValueError, SetupError):
+            raise
+        except Exception as ex:
+            r.update({"結果": "読めない", "理由": explain_api_error(ex) if getattr(ex, "failure", None) is not None else _auth_reason(ex)})
+        if direct is not None:
+            r["直接の権限"] = "ある" if cid in direct else "無い（マネージャー経由。認証ファイルに login_customer_id が要る）"
+        rows.append(r)
+    steps.append({"段": "3. 許可リストのアカウント", "結果": "よい" if all(x["結果"] == "読める" for x in rows) else "直す", "アカウント": rows})
+    out["段"] = steps
+    ok = all(x["結果"] == "読める" for x in rows)
+    out["結論"] = ("つながった。許可リストのアカウントを全部読める。キーワードプランナー（forecast_volume）だけは、"
+                 "Cloud プロジェクトの利用権限が Basic 以上のときに動く。") if ok else "読めないアカウントがある。行の「理由」を見る。"
+    return out
+
+
+def _auth_reason(ex: Exception) -> str:
+    from .client import explain_auth_error
+
+    if type(ex).__module__.startswith("google.auth"):
+        return explain_auth_error(ex)
+    return f"API を呼べなかった（{type(ex).__name__}）"
 
 
 def _performance_rows(level: str, api_rows: List) -> List[dict]:
@@ -550,7 +626,7 @@ def _planner_reason(ex: Exception) -> str:
         return ("キーワードプランナーの API は、いまの API の利用権限（explorer access）では使えないと Google が返した。"
                 "basic access を申請して通れば使える。それまでは、キーワードプランナーの画面で見た月間検索数を "
                 "monthly_searches で渡すと計算できる。")
-    return f"キーワードプランナーから検索数を取れなかった: {text}"
+    return f"キーワードプランナーから検索数を取れなかった: {explain_api_error(ex, keyword_planner=True)}"
 
 
 def _keyword_list(keywords) -> List[str]:

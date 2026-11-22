@@ -7,10 +7,12 @@
 """
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import re
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -65,13 +67,75 @@ class KBAmbiguous(KBError):
 
 # ---------------- 場所と読み込み ----------------
 
-def kb_dir() -> Path:
-    raw = os.environ.get(ENV_KB_DIR) or DEFAULT_KB_DIR
+# 媒体ごとの知識ベース。Google のフォルダ（ADS_KB_DIR か既定）と同じ階層にある「◯◯広告の基礎」を引く。
+# 媒体ごとに場所を変えたいときは ADS_KB_DIR_META などで指す。章（*.md）が増えても、呼ぶたびにフォルダを読み直すので拾える。
+MEDIA = {"google": "Google広告の基礎", "meta": "Meta広告の基礎", "lineyahoo": "LINEヤフー広告の基礎", "chatgpt": "ChatGPT広告の基礎"}
+MEDIA_LABEL = {"google": "Google 広告", "meta": "Meta 広告", "lineyahoo": "LINEヤフー広告", "chatgpt": "ChatGPT の広告"}
+_MEDIA_ALIAS_SRC = {
+    "google": ("google", "google広告", "グーグル", "gads"),
+    "meta": ("meta", "meta広告", "facebook", "instagram", "フェイスブック", "インスタグラム", "メタ"),
+    "lineyahoo": ("lineyahoo", "lineヤフー", "lineヤフー広告", "line", "yahoo", "ヤフー", "yahoo広告", "line広告", "ly"),
+    "chatgpt": ("chatgpt", "chatgpt広告", "openai", "chatgptの広告"),
+}
+MEDIA_ALIASES = {unicodedata.normalize("NFKC", a).casefold().replace(" ", "").replace("!", ""): k
+                 for k, al in _MEDIA_ALIAS_SRC.items() for a in al}
+GOOGLE_ONLY = "この道具は Google 広告の知識ベースだけを引く（運用の型/・ロジックツリー/・tips/・用語集は Google にしかない）"
+_MEDIA: "contextvars.ContextVar[str]" = contextvars.ContextVar("kb_media", default="google")
+
+
+def media_key(media: str = "") -> str:
+    """媒体の指定（google／meta／lineyahoo／chatgpt。日本語や旧称も可）を、決まった名前にする。空は google。"""
+    raw = unicodedata.normalize("NFKC", str(media or "")).casefold().replace(" ", "").replace("!", "")
     if not raw:
+        return "google"
+    if raw in MEDIA_ALIASES:
+        return MEDIA_ALIASES[raw]
+    raise KBError(f"媒体 {media!r} は知識ベースに無い。google／meta／lineyahoo／chatgpt のどれかで指定する")
+
+
+def current_media() -> str:
+    return _MEDIA.get()
+
+
+@contextmanager
+def use_media(media: str = ""):
+    """この中だけ、知識ベースの道具が指定した媒体のフォルダを引く（呼び出しごとに戻す）。"""
+    token = _MEDIA.set(media_key(media))
+    try:
+        yield _MEDIA.get()
+    finally:
+        _MEDIA.reset(token)
+
+
+def media_dir(key: str) -> Optional[Path]:
+    raw = os.environ.get(ENV_KB_DIR) or DEFAULT_KB_DIR
+    if key == "google":
+        return Path(raw) if raw else None
+    own = os.environ.get(f"{ENV_KB_DIR}_{key.upper()}")
+    if own:
+        return Path(own)
+    return Path(raw).parent / MEDIA[key] if raw else None
+
+
+def media_list() -> List[dict]:
+    """引ける媒体の一覧（フォルダがあるか、メモの数）。"""
+    out = []
+    for key in MEDIA:
+        p = media_dir(key)
+        ok = bool(p and p.is_dir())
+        out.append({"指定": key, "媒体": MEDIA_LABEL[key], "ある": ok,
+                    "メモの数": sum(1 for f in p.rglob("*.md") if not any(x.startswith((".", "_")) for x in f.relative_to(p).parts)) if ok else 0})
+    return out
+
+
+def kb_dir() -> Path:
+    key = _MEDIA.get()
+    p = media_dir(key)
+    if p is None:
         raise KBError(f"知識ベースの場所が設定されていない。環境変数 {ENV_KB_DIR} で、知識ベース（Markdown のメモ）のフォルダを指す")
-    p = Path(raw)
     if not p.is_dir():
-        raise KBError(f"知識ベースのフォルダが見つからない: {p}（環境変数 {ENV_KB_DIR} で場所を指す）")
+        where = ENV_KB_DIR if key == "google" else f"{ENV_KB_DIR}_{key.upper()}（無ければ {ENV_KB_DIR} と同じ階層の {MEDIA[key]}）"
+        raise KBError(f"{MEDIA_LABEL[key]}の知識ベースのフォルダが見つからない: {p}（環境変数 {where} で場所を指す）")
     return p
 
 
@@ -119,7 +183,7 @@ def list_files(folder: Optional[Path] = None) -> List[dict]:
         if any(part.startswith((".", "_")) for part in rel.parts):
             continue
         out.append({"path": p, "rel": str(rel), "kind": _kind(rel, False), "upper": False})
-    for p in sorted(folder.parent.glob("*.md")):
+    for p in (sorted(folder.parent.glob("*.md")) if _MEDIA.get() == "google" else []):  # 1 つ上の *.md は Google の横断メモ
         if not p.name.startswith((".", "_")):
             out.append({"path": p, "rel": f"../{p.name}", "kind": "知識メモ", "upper": True})
     return out
@@ -450,6 +514,18 @@ def first_reads(docs: List[dict]) -> Tuple[List[dict], List[str]]:
             continue
         out.append({"ファイル": d["rel"], "題名": d["title"], "なぜ": why, "字数": d["chars"], "確認日": d["date"],
                     "読むには": f"kb_read(file='{d['ref']}')"})
+    if _MEDIA.get() != "google":
+        whole = [d for d in docs if d["kind"] == "知識メモ" and _id_key(d["raw_id"]) == "0"]
+        if whole:
+            d = whole[0]
+            out.append({"ファイル": d["rel"], "題名": d["title"], "なぜ": "この媒体の全体像（Google との違いの表つき）",
+                        "字数": d["chars"], "確認日": d["date"], "読むには": f"kb_read(file='{d['ref']}', media='{_MEDIA.get()}')"})
+        if out and core:
+            out[0]["読むには"] = f"kb_read(file='{core[0]['ref']}', media='{_MEDIA.get()}')"
+        if not core:
+            notes.append("90_核となる理解.md はまだ無い（書かれたら、ここに出る）。代わりに 00 から読む。")
+        notes.append("運用の型は 28_運用の型 と 36_運用の型_◯◯への当てはめ を kb_read で読む（kb_kata は Google だけ）。")
+        return out, notes
     if not core:
         notes.append("90_核となる理解.md はまだ無い（書かれたら、ここに出る）。代わりに 運用の型/00 と 00 から読む。")
     if not kata_map:
@@ -487,7 +563,9 @@ def overview(kind: str = "", max_chars: int = 30000) -> dict:
         "期間": "いまのファイル（呼ぶたびに読み直す）",
         "単位": "ファイル 1 本ごと",
         "最初に読むもの": firsts,
+        "媒体": MEDIA_LABEL[_MEDIA.get()],
         "場所": str(folder),
+        "引ける媒体": media_list(),
         "件数": {"ファイル": len(docs), "種類ごと": by_kind, "確認日の範囲": [dates[0], dates[-1]] if dates else None,
                 "確認日が書かれていないファイル": [d["rel"] for d in docs if not d["date"]],
                 f"確認日から {STALE_DAYS} 日を過ぎたファイル": [d["rel"] for d in docs if _stale(d["date"])],
@@ -496,7 +574,8 @@ def overview(kind: str = "", max_chars: int = 30000) -> dict:
         "行": shown,
         "使い方": "語で探す kb_search／節を読む kb_read（直下のメモは番号 12、運用の型/ は 型12）／できる・できない kb_rules／"
                 "指標が動いた kb_logic_tree／次に何をするか kb_kata（状態の判定 → 規則・しきい値・式）／"
-                "理解度テストと よくある誤答 kb_quiz／用語 kb_glossary／実務家の Tips kb_tips。",
+                "理解度テストと よくある誤答 kb_quiz／用語 kb_glossary／実務家の Tips kb_tips。"
+                "ほかの媒体は media（meta／lineyahoo／chatgpt）を付ける（kb_overview・kb_search・kb_read・kb_rules・kb_check_claim・kb_quiz）。",
         "注記": ["種類「運用の型（体系）」は 運用の型/ フォルダ（型00〜型12、付録 型90〜）。"
                 "種類「運用の型」は名前に「運用の型」を含む直下のメモ（28・35〜37）。",
                 "番号が重なるファイル（94_裏取りの記録_* など）は、番号では 1 本に決まらない。「番号」の列の名前で指定する。",

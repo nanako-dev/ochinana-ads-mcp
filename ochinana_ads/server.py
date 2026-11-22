@@ -12,20 +12,20 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from . import abcd, calc, curvefit, decisions, feed, kata, kb, mediaplan, quiz, simulate, specs, stats, tools, urltool, video
-from .client import SetupError, explain_api_error
+from .client import SetupError, explain_api_error, explain_auth_error
 from .config import DEFAULT_TOP_N, VERSION
 
 server = MCPServer(
     name="ochinana-ads",
     version=VERSION,
     instructions=(
-        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。\n"
+        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。つながらない・入れたばかりのときは check_connection。\n"
         "1. 広告運用の質問には、答える前に必ず知識ベースを引く。会話の最初の 1 回は kb_overview と kb_read(file='90')"
         "（核となる理解。無ければ kb_read(file='型00')）を読む。\n"
         "2. 問いの型ごとの引き方: できる／できない・上限 → kb_rules。なぜ → kb_read（00 と該当メモ）。"
         "指標が動いた → kb_logic_tree。次に何をするか → kb_kata（kind='状態' で決定木の問いに答えて状態を決め、"
         "state='状N' でその状態の規則を引く）。やり方の助言 → kb_tips（仮説と断る）。主張の真偽 → kb_check_claim。"
-        "用語 → kb_glossary。語で広く → kb_search。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
+        "用語 → kb_glossary。語で広く → kb_search。Meta・LINEヤフー・ChatGPT の広告 → kb_overview・kb_search・kb_read・kb_rules・kb_check_claim・kb_quiz に media（meta／lineyahoo／chatgpt）を付ける（この 3 媒体は API でつながっていない。数字は管理画面の CSV から report_numbers_csv）。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
         "budget_pace・cpa_roas_simulate・media_plan_simulate・fit_response_curve・image_spec_check・significance・data_needed・compare_variants・list_compare・feed_check）で、暗算しない。"
         "アカウントの診断 → run_checks。誰がいつ何を変えたか → get_change_history。変更の前後 → measure_effect（前後の差まで。因果と言わない）。"
         "いつもの水準から外れたもの → get_anomalies。"
@@ -64,12 +64,22 @@ def _guard(fn):
             if getattr(ex, "failure", None) is not None:  # Google 広告 API が返したエラー
                 raise ToolError(explain_api_error(ex)) from None
             if type(ex).__module__.startswith("google.auth"):
-                raise ToolError(
-                    f"Google の認証に失敗した（{type(ex).__name__}）。認証ファイルの更新が必要かもしれない。"
-                ) from None
+                raise ToolError(explain_auth_error(ex)) from None
             raise
 
     return wrapper
+
+
+@server.tool(title="接続を確かめる", annotations=READ_ONLY)
+@_guard
+def check_connection() -> dict:
+    """入れたあと・つながらないときに最初に呼ぶ。認証ファイル → Google 広告 API → 許可リストの各アカウント、の順に確かめ、
+    つまずいた段と直し方を返す。
+
+    認証ファイルは中身を開かない（有無・権限・置き場所だけ）。許可リストに無いアカウントの ID と名前は返さない
+    （直接読める件数だけ）。読むアカウントを選ぶのは、本人が端末で `uv run ochinana-ads-connect check` を動かして行う。
+    """
+    return tools.check_connection()
 
 
 @server.tool(title="使えるアカウントの一覧", annotations=READ_ONLY)
@@ -481,21 +491,27 @@ def report_sheet_check(bundle_id: str, values: list[list[str]]) -> dict:
 
 @server.tool(title="知識ベースの一覧", annotations=LOCAL_CALC)
 @_guard
-def kb_overview(kind: str = "", max_chars: int = 30000) -> dict:
-    """知識ベース（媒体仕様メモ/Google広告の基礎/）に何が入っているかの一覧を返す。会話の最初に 1 回呼ぶ。
+def kb_overview(kind: str = "", max_chars: int = 30000, media: str = "") -> dict:
+    """知識ベースに何が入っているかの一覧を返す。会話の最初に 1 回呼ぶ。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     先頭の「最初に読むもの」に 90（核となる理解。あれば）と 運用の型/00（全体の地図）を置く。
     ファイルごとに 番号（kb_read に渡す名前）、種類、題名、一言、字数、確認日。
     種類: 核となる理解／運用の型（体系）／ルール統合表／知識メモ／運用の型（28・35〜37）／ロジックツリー／Tips／裏取りの記録／理解度テスト。
     kind で種類を絞れる。呼ぶたびにフォルダを読み直すので、足されたメモもすぐ出る。
     """
-    return kb.overview(kind, max_chars)
+    with kb.use_media(media):
+        return kb.overview(kind, max_chars)
 
 
 @server.tool(title="知識ベースを語で探す", annotations=LOCAL_CALC)
 @_guard
-def kb_search(query: str, kind: str = "", file: str = "", max_results: int = 10, max_chars: int = 6000) -> dict:
+def kb_search(query: str, kind: str = "", file: str = "", max_results: int = 10, max_chars: int = 6000,
+              media: str = "") -> dict:
     """知識ベース全体を語で探し、当たった所（ファイル・節・行・確認日・印・根拠の種類）を返す。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     query: 空白で区切った語。すべてを含むものを探す（部分一致。全角半角・大文字小文字・空白の違いは無視）。
     並び: 見出しの一致が先。その次は 核となる理解 → 運用の型（体系） → ルール統合表 → 知識メモ → ロジックツリー → Tips
@@ -505,13 +521,17 @@ def kb_search(query: str, kind: str = "", file: str = "", max_results: int = 10,
     番号が重なる（94 など）ときは当たった全部から探し、注記で知らせる。
     max_results: 返す件数（既定 10、最大 50）。max_chars: 返答の文字数の上限（既定 6,000）。
     """
-    return kb.search(query, kind, file, max_results, max_chars)
+    with kb.use_media(media):
+        return kb.search(query, kind, file, max_results, max_chars)
 
 
 @server.tool(title="知識ベースの節を読む", annotations=LOCAL_CALC)
 @_guard
-def kb_read(file: str, section: str = "", toc_only: bool = False, max_chars: int = 8000, offset: int = 0) -> dict:
+def kb_read(file: str, section: str = "", toc_only: bool = False, max_chars: int = 8000, offset: int = 0,
+            media: str = "") -> dict:
     """ファイルと節（見出し）を指定して、本文を Markdown のまま返す。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     file: 直下のメモは番号（例 00、15、90）、運用の型/ のファイルは 型NN（例 型04、型08、付録は 型91）、
     tips・ツリーは T1・L2。「運用の型/12」のようなフォルダつきや、名前の一部でもよい。
@@ -519,14 +539,17 @@ def kb_read(file: str, section: str = "", toc_only: bool = False, max_chars: int
     section: 見出しの番号（例 5-2、§6）か見出しの言葉。空なら全文。
     toc_only: true なら目次（見出し・行・字数）だけ返す。長い節は max_chars で切り、offset で続きを読む。
     """
-    return kb.read(file, section, toc_only, max_chars, offset)
+    with kb.use_media(media):
+        return kb.read(file, section, toc_only, max_chars, offset)
 
 
 @server.tool(title="できる／できないのルールを引く", annotations=LOCAL_CALC)
 @_guard
 def kb_rules(query: str = "", target: str = "", file: str = "", mark: str = "", max_results: int = 20,
-             max_chars: int = 6000, field: str = "", kind: str = "") -> dict:
+             max_chars: int = 6000, field: str = "", kind: str = "", media: str = "") -> dict:
     """「できる／できない」「上限はいくつ」「この組み合わせは通るか」のルールを 1 行ずつ返す。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     統合表（知識ベースの rules.csv ＝ 92_ルール表_統合.md。14・15 と各メモの「細かいルール一覧」をまとめ直したもの）を先に引く。
     query: 行のどこかに含む語（空白区切りで AND）。新しい id（例 R-入札-029）や元のメモの番号（例 14#66、15:4-41）でも引ける。
@@ -539,14 +562,15 @@ def kb_rules(query: str = "", target: str = "", file: str = "", mark: str = "", 
     kind: 空なら統合表に加え、query の語で 運用の型の規則（型08）と 核となる理解（90）の当たりも少し添える。
     ルール統合表／知識メモ（各メモの表）／運用の型（体系）（型08 の規則だけ）／核となる理解（90 だけ）で絞れる。
     """
-    return kb.rules(query, target, file, mark, max_results, max_chars, field, kind)
+    with kb.use_media(media):
+        return kb.rules(query, target, file, mark, max_results, max_chars, field, kind)
 
 
 @server.tool(title="指標が動いた原因の木を引く", annotations=LOCAL_CALC)
 @_guard
 def kb_logic_tree(metric: str = "", direction: str = "", id: str = "", max_results: int = 15,
                   max_chars: int = 9000) -> dict:
-    """指標と向きから、ロジックツリーの要因の行（要因・なぜ・確かめ方・打ち手・副作用・根拠）を返す。
+    """指標と向きから、ロジックツリーの要因の行（要因・なぜ・確かめ方・打ち手・副作用・根拠）を返す。Google 広告だけ。
 
     metric: 指標の名前か略号（例 クリック単価、CPC、コンバージョン率、獲得単価、ROAS）。用語集の別名でも引ける。
     direction: 上（上がった・増えた）／下（下がった・減った）。検索語句の質は 悪／良。空なら両方。
@@ -559,7 +583,8 @@ def kb_logic_tree(metric: str = "", direction: str = "", id: str = "", max_resul
 @server.tool(title="用語を引く", annotations=LOCAL_CALC)
 @_guard
 def kb_glossary(term: str, max_results: int = 10) -> dict:
-    """用語集（33）から用語を引く。旧称・略語・英語からも引ける（例 部分一致、ROAS、目標アクション単価）。
+    """用語集（33）から用語を引く。旧称・略語・英語からも引ける（例 部分一致、ROAS、目標アクション単価）。Google 広告だけ
+    （ほかの媒体の用語は kb_search に media を付けて探す）。
 
     意味・間違えやすい点・くわしく書いてあるメモを返す。名前が変わった用語の対応表も見る。
     """
@@ -569,7 +594,7 @@ def kb_glossary(term: str, max_results: int = 10) -> dict:
 @server.tool(title="Tips を引く", annotations=LOCAL_CALC)
 @_guard
 def kb_tips(query: str = "", scene: str = "", file: str = "", max_results: int = 10) -> dict:
-    """実務家などの Tips（tips/T1〜）を、語や場面で引く。返す行はすべて「仮説」として扱う。
+    """実務家などの Tips（tips/T1〜）を、語や場面で引く。返す行はすべて「仮説」として扱う。Google 広告だけ。
 
     query: 行のどこかに含む語（空白区切りで AND）。scene: 「場面」の列に含む語。file: T1 などで絞る。
     根拠の種類・誰の主張か・時期・条件と反対意見を一緒に返す。
@@ -579,20 +604,24 @@ def kb_tips(query: str = "", scene: str = "", file: str = "", max_results: int =
 
 @server.tool(title="主張を知識ベースに照らす", annotations=LOCAL_CALC)
 @_guard
-def kb_check_claim(claim: str, max_results: int = 15) -> dict:
+def kb_check_claim(claim: str, max_results: int = 15, media: str = "") -> dict:
     """文（これから答えようとしている主張）を渡すと、関係しそうなルール・記述・ツリーの行・Tips を並べて返す。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     判定はしない。並んだ記述と主張を見比べて、合っているか・未確認かを決めるのは呼ぶ側。
     文の中の数字と同じ数字がある行には印を付ける。
     主張が理解度テストの「よくある誤答」に近いときは、先頭の「よくある誤答に近い」に正解と根拠を付けて知らせる。
     """
-    return kb.check_claim(claim, max_results)
+    with kb.use_media(media):
+        return kb.check_claim(claim, max_results)
 
 
 @server.tool(title="運用の型を引く（規則・しきい値・式・状態）", annotations=LOCAL_CALC)
 @_guard
 def kb_kata(query: str = "", kind: str = "", state: str = "", max_results: int = 20, max_chars: int = 9000) -> dict:
-    """「次に何をするか」を、運用の型（運用の型/）から引く。判定はしない（問いと規則を並べる）。
+    """「次に何をするか」を、運用の型（運用の型/）から引く。判定はしない（問いと規則を並べる）。Google 広告だけ
+    （ほかの媒体は kb_read(file='28', media=…) と 36 の当てはめを読む）。
 
     kind を省くと query の番号から決める。何も渡さないと引き方と分類の一覧を返す。
     - 規則（型08）: query に 規換-15（番号）／規換（分類）／語（条件・行動の部分一致、空白区切りは AND）。
@@ -610,15 +639,19 @@ def kb_kata(query: str = "", kind: str = "", state: str = "", max_results: int =
 @server.tool(title="理解度テストを引く", annotations=LOCAL_CALC)
 @_guard
 def kb_quiz(query: str = "", field: str = "", difficulty: str = "", type: str = "", mark: str = "", id: str = "",
-            mode: str = "", count: int = 5, shuffle: bool = False, seed: int = 0, max_chars: int = 6000) -> dict:
+            mode: str = "", count: int = 5, shuffle: bool = False, seed: int = 0, max_chars: int = 6000,
+            media: str = "") -> dict:
     """理解度テスト（quiz.jsonl）を引く。
+
+    media: google（既定）／meta／lineyahoo／chatgpt。ほかの媒体の知識ベースを引くときに付ける。
 
     mode='問い'（既定）: 分野（部分一致。例 入札、計測、LP）・難しさ（基本／実務／難）・型（落とし穴、未確認、計算 など）・
     印（✅△❓）・語（問いに含む）で絞り、count 問を返す。正解は返さない（問い・id・分野・型・難しさだけ）。shuffle でばらばらに。
     id を渡す（mode='答え'）: 正解・よくある誤答・なぜ誤答するか・根拠・印・採点の要点。カンマ区切りで複数。
     mode='誤答': query の主張に近い「よくある誤答」を探し、正解と根拠を返す。
     """
-    return quiz.quiz(query, field, difficulty, type, mark, id, mode, count, shuffle, seed, max_chars)
+    with kb.use_media(media):
+        return quiz.quiz(query, field, difficulty, type, mark, id, mode, count, shuffle, seed, max_chars)
 
 
 # ---- 段 3.5: 小さな道具（計算と点検。外へは何も送らない） ----

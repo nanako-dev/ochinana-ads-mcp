@@ -625,7 +625,7 @@ wheels = [
 
 [[package]]
 name = "ochinana-ads-mcp"
-version = "0.5.0"
+version = "0.17.0"
 source = { editable = "." }
 dependencies = [
     { name = "google-ads" },

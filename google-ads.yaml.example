@@ -1,10 +1,23 @@
-# Google 広告 API の設定の見本。中身を自分の値に直して、このフォルダの外（手元の安全な場所）に置く。
+# Google 広告 API の認証ファイルの見本。
+# いちばん楽なのは、自分の端末で次を動かして作ること（ブラウザで許可すると、このファイルができる。値は画面に出ない）:
+#   uv run ochinana-ads-connect token --client-secret ~/Downloads/client_secret_XXXX.json --out ~/.config/ochinana-ads/google-ads.yaml
+# 手で作るときは、このファイルを写して、このフォルダの外（手元の安全な場所）に置く。
 # 道具には環境変数 GOOGLE_ADS_CONFIGURATION_FILE_PATH でファイルの場所だけを教える。
 # このファイルの実物をリポジトリに入れない・チャットに貼らない。
-developer_token: "（Google 広告の API センターで発行した開発者トークン）"
-client_id: "（Google Cloud の OAuth の client ID）"
-client_secret: "（OAuth の client secret）"
-refresh_token: "（自分のアカウントで認可して得たリフレッシュ トークン）"
-# 管理アカウント（MCC）の下のアカウントを読むときだけ。ハイフンなしの 10 桁
+# 開発者トークンは 2026-09-09 に廃止されたので、書かない（書いても API は無視する。将来の版では断られる）。
+
+# --- 1 人用の認証（OAuth のデスクトップ アプリ）。下の 3 行を使う ---
+client_id: "（Google Cloud の OAuth クライアントの ID）"
+client_secret: "（OAuth クライアントの秘密）"
+refresh_token: "（自分のアカウントで許可して得たリフレッシュトークン）"
+
+# --- gcloud で取った認証を使うときは、上の 3 行を消して、これだけ ---
+# use_application_default_credentials: true
+
+# --- サービスアカウントを使うときは、上の 3 行を消して、これだけ ---
+# json_key_file_path: "/安全な場所/service-account.json"
+
+# マネージャー（MCC）の下のアカウントを読むときだけ。マネージャーのハイフンなしの 10 桁
 # login_customer_id: "1234567890"
+
 use_proto_plus: true
