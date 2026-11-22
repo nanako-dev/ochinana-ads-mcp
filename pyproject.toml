@@ -3,6 +3,8 @@ name = "ochinana-ads-mcp"
 version = "0.17.0"
 description = "OCHINANA の広告運用セット（読む道具・点検・見込み・知識ベース・計算の道具）"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["mcp>=1.10", "google-ads>=28"]
 
 [project.scripts]
@@ -13,7 +15,7 @@ ochinana-ads-connect = "ochinana_ads.connect:main"
 dev = ["pytest>=8"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
