@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-VERSION = "0.17.1"
+VERSION = "0.17.2"
 UPDATED = "2026-11-24"
 
 # 読んでよい Google 広告のアカウント（許可リスト）。環境変数 ADS_ALLOWED_CUSTOMER_IDS にカンマ区切りで書く

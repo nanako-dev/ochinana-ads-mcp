@@ -139,8 +139,10 @@ def test_自動で作られた文が無いときはまだ無いと返す():
 def test_自動で作られた文があるとき():
     rows = api_rows()
     base = dict(campaign=NS(id=1, name="検索A"), ad_group=NS(id=10, name="ルール"))
-    rows["ad_group_ad_asset_view"] = [NS(**base, ad_group_ad_asset_view=NS(field_type=E("HEADLINE"), performance_label=E("GOOD")),
-                                         asset=NS(text_asset=NS(text="6人制ホッケーの見どころ")), metrics=M(40, 3, 900))]
+    rows["ad_group_ad_asset_view"] = [NS(**base, ad_group_ad_asset_view=NS(field_type=E("HEADLINE"), performance_label=E("GOOD"),
+                                                                           source=E("AUTOMATICALLY_CREATED")),
+                                         asset=NS(text_asset=NS(text="6人制ホッケーの見どころ"), source=E("AUTOMATICALLY_CREATED")),
+                                         metrics=M(40, 3, 900))]
     rows["ai_max_search_term_ad_combination_view"] = [
         NS(**base, ai_max_search_term_ad_combination_view=NS(search_term=t, headline="6人制ホッケーの見どころ",
                                                              landing_page="https://example.com/teams/"), metrics=M(imp, 1, 300))
@@ -238,7 +240,10 @@ def test_段2の問い合わせ文():
     assert "campaign.status" in links["campaign"].split(" FROM ")[0]
     assert "ad_group.status" in links["ad_group"].split(" FROM ")[0]
     gen = gaql.generated_text_queries("2026-10-01", "2026-10-31")
-    assert "asset.source = 'AUTOMATICALLY_CREATED'" in gen["texts"]
+    # Google が足した文は asset.source が ADVERTISER のままのことがあるので、出どころで絞らず両方の列を読む
+    assert "WHERE asset.source" not in gen["texts"]
+    assert "ad_group_ad_asset_view.source" in gen["texts"].split(" FROM ")[0]
+    assert "asset.source" in gen["texts"].split(" FROM ")[0]
     assert all("BETWEEN '2026-10-01' AND '2026-10-31'" in q for q in gen.values())
     assert "campaign_conversion_goal.biddable" in gaql.conversion_goals_queries()["goals"]
     assert "custom_conversion_goal.conversion_actions" in gaql.conversion_goals_queries()["custom_goals"]
@@ -246,3 +251,49 @@ def test_段2の問い合わせ文():
     assert "system_serving_status" in gaql.keyword_serving_query()
     with pytest.raises(ValueError):
         gaql.generated_text_queries("2026-10-31", "2026-10-01")
+
+
+def _text_row(text, link, asset, imp=10, field="HEADLINE", group="ルール"):
+    return NS(campaign=NS(id=1, name="検索A"), ad_group=NS(id=10, name=group),
+              ad_group_ad_asset_view=NS(field_type=E(field), performance_label=E("PENDING"), source=E(link)),
+              asset=NS(text_asset=NS(text=text), source=E(asset)), metrics=M(imp, 1, 100))
+
+
+def test_アセットの出どころが広告主でも_つながりの側が自動なら_Googleが足した文として拾う():
+    rows = api_rows()
+    rows["ad_group_ad_asset_view"] = [
+        _text_row("観戦ガイド", "ADVERTISER", "ADVERTISER"),
+        _text_row("初心者でも楽しめる", "ADVERTISER", "ADVERTISER"),
+        _text_row("ルールが分かる観戦の手引き", "AUTOMATICALLY_CREATED", "ADVERTISER"),  # 2026-11-24 実物で見た形
+        _text_row("無料で読める", "ADVERTISER", "AUTOMATICALLY_CREATED", field="DESCRIPTION"),
+    ]
+    base = dict(campaign=NS(id=1, name="検索A"), ad_group=NS(id=10, name="ルール"))
+    rows["ai_max_search_term_ad_combination_view"] = [
+        NS(**base, ai_max_search_term_ad_combination_view=NS(search_term="q", headline=h, landing_page="https://example.com/"),
+           metrics=M(5, 0, 0))
+        for h in ["観戦ガイド | 初心者でも楽しめる", "ルールが分かる観戦の手引き | 観戦ガイド", "どこにも無い見出し"]]
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    got = {t["文"]: t for t in out["自動で作られた見出し・説明文"]}
+    assert set(got) == {"ルールが分かる観戦の手引き", "無料で読める"}
+    assert got["ルールが分かる観戦の手引き"]["つながりの出どころ"] == "自動で作成"
+    assert got["ルールが分かる観戦の手引き"]["アセットの出どころ"] == "広告主"
+    assert got["無料で読める"]["アセットの出どころ"] == "自動で作成"
+    assert out["件数"]["自動で作られた見出し・説明文"] == 2
+    assert out["件数"]["入稿した見出し・説明文（表示があったもの）"] == 2
+    origin = {c["見出し"]: c["見出しの作り手"] for c in out["見出しと着地 URL の組み合わせ"]}
+    assert origin["観戦ガイド | 初心者でも楽しめる"] == tools.ORIGIN_ADVERTISER
+    assert origin["ルールが分かる観戦の手引き | 観戦ガイド"] == tools.ORIGIN_GOOGLE
+    assert origin["どこにも無い見出し"] == tools.ORIGIN_OTHER
+    text = json.dumps(out, ensure_ascii=False)
+    assert "ここに出る文は Google が自動で作ったもの" not in text  # 組み合わせの欄に付けていた誤った断り
+    assert "つながりの側だけに印が付く" in out["文の出どころの読み方"]["自動で作られた見出し・説明文"]
+
+
+def test_入稿した文を読めない広告グループの組み合わせは_見分けられないと返す():
+    rows = api_rows()
+    rows["ai_max_search_term_ad_combination_view"] = [
+        NS(campaign=NS(id=1, name="検索A"), ad_group=NS(id=11, name="別"),
+           ai_max_search_term_ad_combination_view=NS(search_term="q", headline="何か", landing_page="https://example.com/"),
+           metrics=M(5, 0, 0))]
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    assert out["見出しと着地 URL の組み合わせ"][0]["見出しの作り手"] == tools.ORIGIN_UNKNOWN

@@ -280,14 +280,23 @@ def keyword_serving_query() -> str:
 
 
 def generated_text_queries(start: str, end: str) -> Dict[str, str]:
-    """Google が自動で作った文と、その着地先。期間の合計。"""
+    """Google が自動で作った文と、その着地先。期間の合計。
+
+    texts は、期間に表示があった見出し・説明文を出どころで絞らずに読む。Google が広告に足した文は、
+    アセットそのものの出どころ（asset.source）は ADVERTISER のまま、つながりの側の出どころ
+    （ad_group_ad_asset_view.source）だけが AUTOMATICALLY_CREATED になることがある（2026-11-24 実物で確認）。
+    GAQL では OR が使えないので、両方の列を読んで、どちらかが自動で作成なら Google が足した文として分ける。
+    入稿した文も、組み合わせの見出しの作り手を見分けるのに使う。
+    """
     where = _between(start, end)
     return {
         "texts": (
-            "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, "
+            "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, asset.id, "
             "ad_group_ad_asset_view.field_type, ad_group_ad_asset_view.performance_label, "
+            "ad_group_ad_asset_view.source, "
             f"asset.text_asset.text, asset.source, {METRICS} "
-            f"FROM ad_group_ad_asset_view WHERE asset.source = 'AUTOMATICALLY_CREATED' AND {where}"
+            "FROM ad_group_ad_asset_view "
+            f"WHERE ad_group_ad_asset_view.field_type IN ('HEADLINE', 'DESCRIPTION') AND {where}"
         ),
         "combinations": (
             "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, "

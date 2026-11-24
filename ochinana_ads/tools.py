@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional  # noqa: F401
 
 from . import convert, gaql
@@ -385,6 +386,32 @@ FIELD_JA = {"HEADLINE": "見出し", "DESCRIPTION": "説明文", "LONG_HEADLINE"
 LABEL_JA = {"BEST": "最良", "GOOD": "良", "LOW": "低", "LEARNING": "学習中", "PENDING": "判定待ち",
             "UNKNOWN": "不明", "UNSPECIFIED": "未判定"}
 PAGE_SOURCE_JA = {"ADVERTISER": "広告主が指定", "AUTOMATIC": "Google が自動で選択"}
+ASSET_SOURCE_JA = {"ADVERTISER": "広告主", "AUTOMATICALLY_CREATED": "自動で作成", "UNKNOWN": "不明", "UNSPECIFIED": "不明"}
+AUTO_SOURCE = "AUTOMATICALLY_CREATED"
+ORIGIN_ADVERTISER = "入稿した文をつないだもの"
+ORIGIN_GOOGLE = "Google が足した文を含む"
+ORIGIN_OTHER = "入稿した文とも Google が足した文とも一致しない部分がある"
+ORIGIN_UNKNOWN = "見分けられない（この広告グループの文を読めなかった）"
+_SEPARATORS = re.compile(r"[\s|｜\-–—・/／:：,、。.!！?？]+")
+
+
+def _is_generated(t: dict) -> bool:
+    """Google が足した文か。つながりの側（広告とアセットの結び付き）か、アセットそのものの出どころが自動で作成。"""
+    return AUTO_SOURCE in (t.get("link_source"), t.get("asset_source"))
+
+
+def _headline_origin(headline: str, advertiser: set, generated: set) -> str:
+    """組み合わせの見出しが、入稿した文をつないだものか、Google が足した文を含むかを、文字の一致で見分ける。"""
+    if not advertiser and not generated:
+        return ORIGIN_UNKNOWN
+    rest, has_gen = headline, False
+    for t in sorted(advertiser | generated, key=len, reverse=True):
+        if t and t in rest:
+            rest = rest.replace(t, " ")
+            has_gen = has_gen or t in generated
+    if _SEPARATORS.sub("", rest):
+        return ORIGIN_OTHER
+    return ORIGIN_GOOGLE if has_gen else ORIGIN_ADVERTISER
 LP_MAX_URLS = 3
 LP_REUSE_HOURS = 6
 
@@ -465,6 +492,8 @@ def get_ads_and_assets(customer_id: str, only_enabled: bool = True, include_text
         },
         "表示オプション（アカウント単位）": _extension_summary([x for x in links if x["level"] == "account"]),
         "キャンペーン": campaigns_out,
+        "見出し・説明文の出どころ": ("ここの見出し・説明文は、広告に入っている文をそのまま数えたもので、出どころでは分けていない。"
+                             "Google が広告に足した文（AI Max の文の自動の作成など）を見分けるには get_generated_text を使う"),
     }
 
 
@@ -493,34 +522,62 @@ def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFA
         ordered = convert.sort_rows(items, "表示")[:top_n]
         return [convert.to_ja_row({rename.get(k, k): v for k, v in r.items()}) for r in ordered]
 
-    texts = [{**t, "field_type": convert.ja(FIELD_JA, t["field_type"]), "label": convert.ja(LABEL_JA, t["label"])}
-             for t in g["texts"]]
+    def ja_text(t: dict) -> dict:
+        keep = {k: v for k, v in t.items() if k not in ("link_source", "asset_source")}
+        return {**keep, "field_type": convert.ja(FIELD_JA, t["field_type"]), "label": convert.ja(LABEL_JA, t["label"]),
+                "link_source": convert.ja(ASSET_SOURCE_JA, t["link_source"]),
+                "asset_source": convert.ja(ASSET_SOURCE_JA, t["asset_source"])}
+
+    by_group: Dict[tuple, Dict[str, set]] = {}
+    for t in g["texts"]:
+        sets = by_group.setdefault((t["campaign"], t["ad_group"]), {"adv": set(), "gen": set()})
+        sets["gen" if _is_generated(t) else "adv"].add(t["text"])
+    texts = [ja_text(t) for t in g["texts"] if _is_generated(t)]
+    n_adv = sum(1 for t in g["texts"] if not _is_generated(t))
     combos = _merge(g["combinations"], ["campaign", "ad_group", "headline", "landing_page"])
+    for c in combos:
+        sets = by_group.get((c["campaign"], c["ad_group"]), {"adv": set(), "gen": set()})
+        c["origin"] = _headline_origin(c["headline"], sets["adv"], sets["gen"] - sets["adv"])
     pages = [{**p, "source": convert.ja(PAGE_SOURCE_JA, p["source"])}
              for p in _merge(g["landing_pages"], ["campaign", "ad_group", "url", "source"])]
     auto_pages = [p for p in pages if p["source"] == PAGE_SOURCE_JA["AUTOMATIC"]]
+    origins = {k: sum(1 for c in combos if c["origin"] == k) for k in (ORIGIN_ADVERTISER, ORIGIN_GOOGLE, ORIGIN_OTHER, ORIGIN_UNKNOWN)}
     out = {
         "対象アカウント": _label(acct),
         "期間": _period(start, end, acct),
-        "単位": "自動で作られた文 1 本ごと、着地 URL 1 本ごとの期間合計。金額は円",
-        "件数": {"自動で作られた見出し・説明文": len(texts), "見出しと着地 URL の組み合わせ": len(combos),
+        "単位": "文 1 本ごと（広告ごと）、組み合わせ 1 つごと、着地 URL 1 本ごとの期間合計。金額は円",
+        "件数": {"自動で作られた見出し・説明文": len(texts),
+                "入稿した見出し・説明文（表示があったもの）": n_adv,
+                "見出しと着地 URL の組み合わせ": len(combos),
+                "組み合わせの見出しの作り手": {k: v for k, v in origins.items() if v},
                 "着地 URL": len(pages), "うち Google が自動で選んだ着地 URL": len(auto_pages)},
     }
     if texts:
         out["自動で作られた見出し・説明文"] = rows(texts, {"campaign": "キャンペーン", "ad_group": "広告グループ",
-                                                  "field_type": "種類", "label": "評価", "text": "文"})
+                                                  "field_type": "種類", "label": "評価", "text": "文",
+                                                  "link_source": "つながりの出どころ", "asset_source": "アセットの出どころ"})
     else:
-        out["自動で作られた見出し・説明文"] = "まだ無い（この期間に、Google が自動で作った見出し・説明文の配信は 0 件）"
+        out["自動で作られた見出し・説明文"] = ("まだ無い（この期間に表示があった見出し・説明文のうち、Google が足したもの"
+                                       "（つながりかアセットの出どころが「自動で作成」）は 0 件）")
     if combos:
         out["見出しと着地 URL の組み合わせ"] = rows(combos, {"campaign": "キャンペーン", "ad_group": "広告グループ",
-                                                 "headline": "見出し", "landing_page": "着地 URL"})
+                                                 "headline": "見出し", "landing_page": "着地 URL", "origin": "見出しの作り手"})
     else:
         out["見出しと着地 URL の組み合わせ"] = "まだ無い（この期間に、AI Max が組み合わせて出した記録は 0 件）"
     if pages:
         out["着地 URL"] = rows(pages, {"campaign": "キャンペーン", "ad_group": "広告グループ", "url": "URL", "source": "選ばれ方"})
     else:
         out["着地 URL"] = "まだ無い（この期間に表示が無い）"
-    out["誰が作った文か"] = "ここに出る文は Google が自動で作ったもの（媒体が作った文）。運用者が承認した原稿ではない。"
+    out["文の出どころの読み方"] = {
+        "自動で作られた見出し・説明文": (
+            "Google が広告に足した文。運用者が入稿した原稿ではない。広告とアセットのつながりの出どころか、"
+            "アセットそのものの出どころが「自動で作成」のものを出す。Google が足した文は、アセットの出どころは"
+            "「広告主」のまま、つながりの側だけに印が付くことがある"),
+        "見出しと着地 URL の組み合わせ": (
+            "AI Max が検索語に合わせて実際に出した見出しと着地 URL。見出しは、入稿した見出しをつないだものが大半で、"
+            "Google が足した文を含むこともある。「見出しの作り手」は、同じ広告グループで期間に表示があった文と"
+            "文字が一致するかで見分けたもの（一致しない部分がある行は、Google が作り直した文の可能性がある）"),
+    }
     return out
 
 

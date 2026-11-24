@@ -172,7 +172,8 @@ def generated(cid: str, start: str, end: str, run: Search) -> dict:
     for r in run(cid, q["texts"]):
         v = r.ad_group_ad_asset_view
         texts.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name, "field_type": v.field_type.name,
-                      "label": v.performance_label.name, "text": r.asset.text_asset.text, **_metrics(r.metrics)})
+                      "label": v.performance_label.name, "text": r.asset.text_asset.text,
+                      "link_source": v.source.name, "asset_source": r.asset.source.name, **_metrics(r.metrics)})
     for r in run(cid, q["combinations"]):
         v = r.ai_max_search_term_ad_combination_view
         combos.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name, "search_term": v.search_term,
