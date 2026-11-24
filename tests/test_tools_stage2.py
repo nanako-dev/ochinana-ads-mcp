@@ -80,6 +80,8 @@ def api_rows():
         "ad_group_ad_asset_view": [],
         "ai_max_search_term_ad_combination_view": [],
         "landing_page_view": [],
+        "expanded_landing_page_view": [],
+        "final_url_expansion_asset_view": [],
     }
 
 
@@ -134,6 +136,8 @@ def test_自動で作られた文が無いときはまだ無いと返す():
     assert out["見出しと着地 URL の組み合わせ"].startswith("まだ無い")
     assert out["着地 URL"].startswith("まだ無い")
     assert out["件数"]["自動で作られた見出し・説明文"] == 0
+    assert out["広げた着地ページと、一緒に出た文"]["広げた着地ページ"].startswith("まだ無い")
+    assert out["件数"]["広げた着地ページ"] == 0
 
 
 def test_自動で作られた文があるとき():
@@ -297,3 +301,46 @@ def test_入稿した文を読めない広告グループの組み合わせは_�
            metrics=M(5, 0, 0))]
     out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
     assert out["見出しと着地 URL の組み合わせ"][0]["見出しの作り手"] == tools.ORIGIN_UNKNOWN
+
+
+def test_Googleが足した文の区切りが全角でも半角でも_同じ文として見分ける():
+    rows = api_rows()
+    rows["ad_group_ad_asset_view"] = [
+        _text_row("観戦ガイド", "ADVERTISER", "ADVERTISER"),
+        _text_row("前半 | 後半", "AUTOMATICALLY_CREATED", "ADVERTISER"),  # 文では半角の「 | 」
+    ]
+    rows["ai_max_search_term_ad_combination_view"] = [
+        NS(campaign=NS(id=1, name="検索A"), ad_group=NS(id=10, name="ルール"),
+           ai_max_search_term_ad_combination_view=NS(search_term="q", headline="観戦ガイド | 前半｜後半",  # 組み合わせでは全角の「｜」
+                                                     landing_page="https://example.com/"), metrics=M(5, 0, 0))]
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    assert out["見出しと着地 URL の組み合わせ"][0]["見出しの作り手"] == tools.ORIGIN_GOOGLE
+
+
+def test_広げた着地ページと一緒に出た文():
+    rows = api_rows()
+    base = dict(campaign=NS(id=1, name="検索A"), ad_group=NS(id=10, name="ルール"))
+    rows["expanded_landing_page_view"] = [
+        NS(**base, expanded_landing_page_view=NS(expanded_final_url=u), metrics=M(imp, 1, 100))
+        for u, imp in [("https://example.com/a/", 7), ("https://example.com/b/?utm_source=google", 3), ("https://example.com/a/", 2)]]
+    rows["final_url_expansion_asset_view"] = [
+        NS(**base, asset=NS(text_asset=NS(text="広げた先の見出し")),
+           final_url_expansion_asset_view=NS(field_type=E("HEADLINE"), final_url="https://example.com/a/"), metrics=M(4, 0, 0))]
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    e = out["広げた着地ページと、一緒に出た文"]
+    pages = {p["クリックが向かった URL"]: p for p in e["広げた着地ページ"]}
+    assert pages["https://example.com/a/"]["表示回数"] == 9 and pages["https://example.com/a/"]["URL の ? 以降"] == "なし"
+    assert pages["https://example.com/b/?utm_source=google"]["URL の ? 以降"] == "あり"
+    assert e["一緒に出た文"][0]["文"] == "広げた先の見出し" and e["一緒に出た文"][0]["種類"] == "見出し"
+    assert out["件数"]["広げた着地ページ"] == 2 and out["件数"]["広げた着地ページと一緒に出た文"] == 1
+    q = gaql.generated_text_queries("2026-10-01", "2026-10-31")
+    assert "FROM expanded_landing_page_view" in q["expanded_pages"] and "FROM final_url_expansion_asset_view" in q["expansion_texts"]
+
+
+def test_広げた着地ページが読めなくても_ほかの欄は返す():
+    rows = api_rows()
+    del rows["final_url_expansion_asset_view"]  # にせの API が KeyError を出す
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    assert out["広げた着地ページと、一緒に出た文"]["広げた着地ページ"].startswith("読めなかった")
+    assert out["件数"]["広げた着地ページ"] == "読めなかった"
+    assert out["自動で作られた見出し・説明文"].startswith("まだ無い")

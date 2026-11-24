@@ -393,6 +393,11 @@ ORIGIN_GOOGLE = "Google が足した文を含む"
 ORIGIN_OTHER = "入稿した文とも Google が足した文とも一致しない部分がある"
 ORIGIN_UNKNOWN = "見分けられない（この広告グループの文を読めなかった）"
 _SEPARATORS = re.compile(r"[\s|｜\-–—・/／:：,、。.!！?？]+")
+_BAR = re.compile(r"\s*[|｜]\s*")  # 区切りの縦棒は、文では「 | 」、組み合わせの見出しでは「｜」で出ることがある
+
+
+def _norm(text: str) -> str:
+    return _BAR.sub("|", text or "").strip()
 
 
 def _is_generated(t: dict) -> bool:
@@ -404,11 +409,12 @@ def _headline_origin(headline: str, advertiser: set, generated: set) -> str:
     """組み合わせの見出しが、入稿した文をつないだものか、Google が足した文を含むかを、文字の一致で見分ける。"""
     if not advertiser and not generated:
         return ORIGIN_UNKNOWN
-    rest, has_gen = headline, False
-    for t in sorted(advertiser | generated, key=len, reverse=True):
+    gen = {_norm(t) for t in generated}
+    rest, has_gen = _norm(headline), False
+    for t in sorted({_norm(t) for t in advertiser} | gen, key=len, reverse=True):
         if t and t in rest:
             rest = rest.replace(t, " ")
-            has_gen = has_gen or t in generated
+            has_gen = has_gen or t in gen
     if _SEPARATORS.sub("", rest):
         return ORIGIN_OTHER
     return ORIGIN_GOOGLE if has_gen else ORIGIN_ADVERTISER
@@ -568,6 +574,9 @@ def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFA
         out["着地 URL"] = rows(pages, {"campaign": "キャンペーン", "ad_group": "広告グループ", "url": "URL", "source": "選ばれ方"})
     else:
         out["着地 URL"] = "まだ無い（この期間に表示が無い）"
+    out["広げた着地ページと、一緒に出た文"] = _expansions(cid, start, end, run, rows)
+    out["件数"]["広げた着地ページ"] = _count(out["広げた着地ページと、一緒に出た文"].get("広げた着地ページ"))
+    out["件数"]["広げた着地ページと一緒に出た文"] = _count(out["広げた着地ページと、一緒に出た文"].get("一緒に出た文"))
     out["文の出どころの読み方"] = {
         "自動で作られた見出し・説明文": (
             "Google が広告に足した文。運用者が入稿した原稿ではない。広告とアセットのつながりの出どころか、"
@@ -577,6 +586,39 @@ def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFA
             "AI Max が検索語に合わせて実際に出した見出しと着地 URL。見出しは、入稿した見出しをつないだものが大半で、"
             "Google が足した文を含むこともある。「見出しの作り手」は、同じ広告グループで期間に表示があった文と"
             "文字が一致するかで見分けたもの（一致しない部分がある行は、Google が作り直した文の可能性がある）"),
+    }
+    return out
+
+
+def _count(v) -> object:
+    if isinstance(v, list):
+        return len(v)
+    return 0 if str(v).startswith("まだ無い") else "読めなかった"
+
+
+def _query_part(url: str) -> str:
+    return "あり" if "?" in (url or "") else "なし"
+
+
+def _expansions(cid: str, start: str, end: str, run: Search, rows) -> dict:
+    """expanded_landing_page_view と final_url_expansion_asset_view。読めなくても、ほかの欄は返す。"""
+    try:
+        e = fetch.expansions(cid, start, end, run)
+    except Exception as ex:  # noqa: BLE001  まだ本物で確かめていない見方なので、失敗は理由を添えて返す
+        reason = explain_api_error(ex) if hasattr(ex, "failure") else f"{type(ex).__name__}: {str(ex)[:200]}"
+        return {"広げた着地ページ": f"読めなかった（{reason}）", "一緒に出た文": "読めなかった（同上）"}
+    pages = [{**p, "query": _query_part(p["url"])} for p in _merge(e["pages"], ["campaign", "ad_group", "url"])]
+    texts = [{**t, "field_type": convert.ja(FIELD_JA, t["field_type"])}
+             for t in _merge(e["texts"], ["campaign", "ad_group", "field_type", "text", "url"])]
+    out = {
+        "広げた着地ページ": rows(pages, {"campaign": "キャンペーン", "ad_group": "広告グループ", "url": "クリックが向かった URL",
+                                     "query": "URL の ? 以降"}) if pages else "まだ無い（この期間に表示が無い）",
+        "一緒に出た文": rows(texts, {"campaign": "キャンペーン", "ad_group": "広告グループ", "field_type": "種類",
+                                   "text": "文", "url": "着地 URL"}) if texts else "まだ無い（この期間に、広げた URL と一緒に出た文の記録は 0 件）",
+        "読み方": ("広げた着地ページは、実際にクリックが向かった URL ごとの実績（expanded_landing_page_view）。"
+                 "「URL の ? 以降」が「なし」の行は、URL に計測の印（utm など）が付いていない可能性がある"
+                 "（トラッキングテンプレートで付けている印は、ここには出ない）。"
+                 "一緒に出た文は、Google が広げた着地 URL と一緒に出した見出し・説明文（final_url_expansion_asset_view）"),
     }
     return out
 

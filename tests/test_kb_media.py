@@ -174,6 +174,9 @@ def test_理解度テストは分野の記号でも絞れる(media):
         (media / "Meta広告の基礎" / "quiz.jsonl").write_text(
             '{"id": "M-AC-01", "分野": "アカウント管理と安全", "問い": "二段階認証は？", "正解": "要る"}\n', encoding="utf-8")
         assert [r["id"] for r in quiz.quiz(field="AC")["行"]] == ["M-AC-01"]
+        (media / "Meta広告の基礎" / "quiz.jsonl").write_text(  # Google の形（記号-番号）
+            '{"id": "KW-31", "分野": "キーワード・構成・AI Max", "問い": "出どころは？", "正解": "つながり"}\n', encoding="utf-8")
+        assert [r["id"] for r in quiz.quiz(field="KW")["行"]] == ["KW-31"]
 
 
 def test_媒体で呼び名が違う指標も_略号につないで引ける(media):

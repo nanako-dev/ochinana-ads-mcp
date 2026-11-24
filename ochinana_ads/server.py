@@ -170,8 +170,9 @@ def get_ads_and_assets(customer_id: str, only_enabled: bool = True, include_text
 def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFAULT_TOP_N) -> dict:
     """Google が自動で作った見出し・説明文と、その着地 URL を期間の実績つきで返す。
 
-    返すのは 3 つ: 自動で作られた文、AI Max が出した見出しと着地 URL の組み合わせ、
-    着地 URL と選ばれ方（広告主が指定／Google が自動で選択）。無いものは「まだ無い」と返す。
+    返すのは 4 つ: 自動で作られた文、AI Max が出した見出しと着地 URL の組み合わせ、
+    着地 URL と選ばれ方（広告主が指定／Google が自動で選択）、広げた着地ページ（実際にクリックが向かった URL と、
+    URL に ? 以降があるか）と一緒に出た文。無いものは「まだ無い」、読めなかったものは理由を添えて返す。
     自動で作られた文は、つながりの側かアセットそのものの出どころが「自動で作成」のもの（両方の出どころを返す）。
     組み合わせの見出しには「見出しの作り手」（入稿した文をつないだもの／Google が足した文を含む ほか）が付く。
     start / end: YYYY-MM-DD。金額は円。

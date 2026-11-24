@@ -310,6 +310,17 @@ def generated_text_queries(start: str, end: str) -> Dict[str, str]:
             f"landing_page_view.unexpanded_final_url, segments.landing_page_source, {METRICS} "
             f"FROM landing_page_view WHERE {where}"
         ),
+        # 広げた着地ページ（実際にクリックが向かった URL）と、そのとき一緒に出た文（2026-11-24 足した）
+        "expanded_pages": (
+            "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, "
+            f"expanded_landing_page_view.expanded_final_url, {METRICS} "
+            f"FROM expanded_landing_page_view WHERE {where}"
+        ),
+        "expansion_texts": (
+            "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, asset.id, asset.text_asset.text, "
+            "final_url_expansion_asset_view.field_type, final_url_expansion_asset_view.final_url, "
+            f"{METRICS} FROM final_url_expansion_asset_view WHERE {where}"
+        ),
     }
 
 

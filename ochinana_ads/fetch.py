@@ -185,6 +185,20 @@ def generated(cid: str, start: str, end: str, run: Search) -> dict:
     return {"texts": texts, "combinations": combos, "landing_pages": pages}
 
 
+def expansions(cid: str, start: str, end: str, run: Search) -> dict:
+    """広げた着地ページと、一緒に出た文。どちらも読めないことがあるので、呼ぶ側で失敗を受ける。"""
+    q = gaql.generated_text_queries(start, end)
+    pages, texts = [], []
+    for r in run(cid, q["expanded_pages"]):
+        pages.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name,
+                      "url": r.expanded_landing_page_view.expanded_final_url, **_metrics(r.metrics)})
+    for r in run(cid, q["expansion_texts"]):
+        v = r.final_url_expansion_asset_view
+        texts.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name, "field_type": v.field_type.name,
+                      "text": r.asset.text_asset.text, "url": v.final_url, **_metrics(r.metrics)})
+    return {"pages": pages, "texts": texts}
+
+
 # ---- 段 3 ----
 
 def keyword_history_rows(cid: str, start: str, end: str, run: Search) -> List[dict]:

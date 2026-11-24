@@ -90,9 +90,9 @@ def _ids(id: str) -> List[str]:
 
 
 def _field_code(r: dict) -> str:
-    """id の分野の記号（M-AC-03 の ac）。分野の名前の代わりに記号でも絞れる。"""
+    """id の分野の記号（M-AC-03 の ac、Google の KW-31 の kw）。分野の名前の代わりに記号でも絞れる。"""
     parts = str(r.get("id", "")).split("-")
-    return kb.norm(parts[-2]) if len(parts) >= 3 else ""
+    return kb.norm(parts[-2]) if len(parts) >= 2 else ""
 
 
 def questions(query: str = "", field: str = "", difficulty: str = "", type: str = "", mark: str = "",
