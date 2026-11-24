@@ -1053,7 +1053,8 @@ def cite(file: str, key: str, section: str = "", expect: Iterable[str] = ()) -> 
 
 # ---------------- 5. ロジックツリー ----------------
 
-_ID = re.compile(r"^([A-Z]{2,6})-([^-\s|]+)-(\d+)$")
+_ID = re.compile(r"^([A-Z]{2,6})-(?:([^-\s|]+)-)?(\d+)$")  # 向きの無い番号（LRN-01）も読む
+_BULLET_ID = re.compile(r"^\s*[-*]\s+`?((?:[A-Z]{2,6})-(?:[^-\s|`]+-)?\d+)`?\s+(.+?)\s*$")
 DIRECTIONS = {
     "上": ("上", "上がった", "上がる", "上昇", "増えた", "増加", "増", "高くなった", "高い", "up", "+"),
     "下": ("下", "下がった", "下がる", "低下", "減った", "減少", "減", "低くなった", "低い", "down", "-"),
@@ -1076,17 +1077,28 @@ def _direction(text: str) -> Optional[str]:
 
 
 def tree_rows(docs: Iterable[dict]) -> List[Tuple[dict, dict, str, str]]:
+    """ツリーの要因の行。表に「要因」の列が無い書き方（要因は表の上の箇条書き「- ROAS-下-01 …」）も読む。"""
     out = []
     for d in docs:
         if d["kind"] != "ロジックツリー":
             continue
+        bullets = {}
+        for ln in d["lines"]:
+            b = _BULLET_ID.match(ln)
+            if b:
+                bullets.setdefault(b.group(1), b.group(2))
         for u in d["units"]:
-            if u["type"] != "表の行" or "要因" not in [norm(h) for h in u["header"]]:
+            if u["type"] != "表の行" or not u.get("cells"):
                 continue
             first = re.sub(r"[`*]", "", list(u["cells"].values())[0]).strip()
             m = _ID.match(first)
-            if m:
-                out.append((d, u, m.group(1), m.group(2)))
+            if not m:
+                continue
+            if "要因" not in [norm(h) for h in u["header"]]:
+                if first not in bullets:
+                    continue
+                u["factor"] = bullets[first]
+            out.append((d, u, m.group(1), m.group(2) or ""))
     return out
 
 
@@ -1137,6 +1149,8 @@ def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results:
     cell_chars = _clamp(cell_chars, 300, 2000)
     docs = load_all()
     rows = tree_rows(docs)
+    if not rows and _MEDIA.get() != "google":
+        raise KBError("ロジックツリー（ロジックツリー/ のメモ）が知識ベースに無い" + not_in_media("kb_search"))
     head = {"対象アカウント": "なし（知識ベース）", "期間": "指定なし（いまのファイル）",
             "単位": "ロジックツリーの要因 1 行（番号・分類・要因・なぜ・確かめ方・打ち手・副作用・根拠）"}
     if id:
@@ -1155,7 +1169,7 @@ def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results:
     if not metric:
         idx = _metric_index(docs)
         return {**head, "条件": {}, "指標の一覧": [
-            {"指標": m["names"][0], "略号": m["codes"], "ファイル": m["doc"]["rel"], "向き": sorted({dr for _, _, c, dr in rows if c in m["codes"]})}
+            {"指標": m["names"][0], "略号": m["codes"], "ファイル": m["doc"]["rel"], "向き": sorted({dr for _, _, c, dr in rows if c in m["codes"] and dr})}
             for m in idx], "使い方": "metric に指標の名前か略号、direction に 上／下（STQ は 悪／良）を渡す。番号（例: CPC-上-07）でも引ける。"}
     want_dir = _direction(direction)
     idx = _metric_index(docs)
@@ -1173,8 +1187,9 @@ def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results:
     for m in matched:
         for d, u, c, dr in rows:
             if d is m["doc"] and c in m["codes"] and m["section"]["line"] <= u["line"] <= m["section"]["end"]:
-                dirs.add(dr)
-                if want_dir and dr != want_dir:
+                if dr:
+                    dirs.add(dr)
+                if want_dir and dr and dr != want_dir:  # 向きの無い行（LRN-01 など）は、どの向きでも返す
                     continue
                 total += 1
                 if len(items) < max_results:
@@ -1208,6 +1223,9 @@ def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results:
 
 def _tree_view(u: dict, cell_chars: int) -> dict:
     v = _row_view(u, cell_chars)
+    if u.get("factor") and "要因" not in v:  # 要因が表の上の箇条書きにある書き方
+        first = next(iter(v), None)
+        v = {**({first: v[first]} if first else {}), "要因": _cut(u["factor"], cell_chars), **{k: x for k, x in v.items() if k != first}}
     ev = _evidence(u["cells"].get("根拠", ""))
     if ev:
         v["根拠の種類"] = ev
@@ -1224,9 +1242,19 @@ def _glossary_rows(docs: Iterable[dict]) -> List[Tuple[dict, dict]]:
         if "用語集" not in d["title"]:
             continue
         for u in d["units"]:
-            if u["type"] == "表の行" and ("用語" in [norm(h) for h in u["header"]] or norm(u["header"][0]).startswith("旧称")):
+            if u["type"] != "表の行" or not u["header"]:
+                continue
+            h0 = norm(u["header"][0])
+            if "用語" in [norm(h) for h in u["header"]] or h0.startswith("旧称") or h0 in ("言葉", "名前"):
                 out.append((d, u))
     return out
+
+
+def _part_hit(q: str, text: str) -> bool:
+    """部分一致。英数字だけの語（CPA など）は、英単語の途中（automatic payments の c pa）には当てない。"""
+    if not q.isascii() or not q.isalnum():
+        return q in text
+    return re.search(rf"(?<![a-z0-9]){re.escape(q)}(?![a-z0-9])", text) is not None
 
 
 def glossary(term: str, max_results: int = 10, max_chars: int = DEFAULT_CHARS) -> dict:
@@ -1242,13 +1270,13 @@ def glossary(term: str, max_results: int = 10, max_chars: int = DEFAULT_CHARS) -
     for d, u in rows:
         c = u["cells"]
         keys = [_cell(c, "用語"), _cell(c, "英語"), _cell(c, "略語・別名・旧称", "略語"), _cell(c, "旧称・別の表記", "旧称"),
-                _cell(c, "今の呼び名")]
+                _cell(c, "今の呼び名"), _cell(c, "言葉"), _cell(c, "名前")]
         parts = [norm(p) for k in keys for p in re.split(r"[／/、,]|（|）|\(|\)", k) if norm(p)]
         if q in parts or q == norm(keys[0]):
             score = 3
-        elif any(q in p for p in parts):
+        elif any(_part_hit(q, p) for p in parts):
             score = 2
-        elif q in u["n"]:
+        elif _part_hit(q, u["n"]):
             score = 1
         else:
             continue
@@ -1256,7 +1284,9 @@ def glossary(term: str, max_results: int = 10, max_chars: int = DEFAULT_CHARS) -
     hits.sort(key=lambda x: (x[0], x[1]))
     items = []
     for sc, _, d, u in hits[:max_results]:
-        kind = "名前が変わった用語" if norm(u["header"][0]).startswith("旧称") else "用語"
+        h0 = norm(u["header"][0])
+        kind = ("名前が変わった用語" if h0.startswith("旧称") else "Google と同じ言葉で意味が違う" if h0 == "言葉"
+                else "廃止・変わったもの" if h0 == "名前" else "用語")
         items.append({"形": kind, "当たり方": {-3: "名前・略語・旧称が一致", -2: "名前・略語・旧称の一部", -1: "意味の文の中"}[sc],
                       **_row_view(u, CELL_CHARS), "印": _mark_of(u), **_where(d, u)})
     shown, cut = _budget(items, _clamp(max_chars, DEFAULT_CHARS, MAX_CHARS))

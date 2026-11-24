@@ -89,6 +89,12 @@ def _ids(id: str) -> List[str]:
     return [x.strip().upper() for x in t.replace("、", ",").replace(" ", ",").split(",") if x.strip()]
 
 
+def _field_code(r: dict) -> str:
+    """id の分野の記号（M-AC-03 の ac）。分野の名前の代わりに記号でも絞れる。"""
+    parts = str(r.get("id", "")).split("-")
+    return kb.norm(parts[-2]) if len(parts) >= 3 else ""
+
+
 def questions(query: str = "", field: str = "", difficulty: str = "", type: str = "", mark: str = "",
               count: int = 5, shuffle: bool = False, seed: int = 0, max_chars: int = kb.DEFAULT_CHARS) -> dict:
     q = _must()
@@ -97,7 +103,7 @@ def questions(query: str = "", field: str = "", difficulty: str = "", type: str 
         raise kb.KBError("印は ✅ / △ / ❓ のどれか")
     f, d, t = kb.norm(field), kb.norm(difficulty), kb.norm(type)
     hits = [r for r in q["rows"]
-            if (not f or f in kb.norm(r.get("分野", "")))
+            if (not f or f in kb.norm(r.get("分野", "")) or f == _field_code(r))
             and (not d or d == kb.norm(r.get("難しさ", "")))
             and (not t or t in kb.norm(r.get("型", "")))
             and (not mark or r.get("印") == mark)

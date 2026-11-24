@@ -104,3 +104,73 @@ def test_ほかの道具も媒体を渡せて_無い種類は無いと返す(med
     for name in ("kb_logic_tree", "kb_glossary", "kb_tips", "kb_kata"):
         import inspect
         assert "media" in inspect.signature(getattr(server, name)).parameters
+
+
+TREE_META = """# L3 ロジックツリー（見本）
+
+- 番号の略号: ROAS＝広告費用対効果 ／ LRN＝情報収集期間
+
+## 3. ROAS・コンバージョン値（ROAS）
+
+### 3-3. 「下がったとき」の木（ROAS-下）と詳細
+
+- ROAS-下-01 直近の暫定
+- ROAS-下-02 値が欠けた
+
+| 番号 | なぜそうなるか | 確かめ方 | 根拠 |
+|---|---|---|---|
+| ROAS-下-01 | 値も後から付く | 確定した週 | 公式 |
+| ROAS-下-02 | 値が無い購入は入らない | イベントのテスト | 推測 |
+
+## 4. 情報収集期間が終わらない（LRN）
+
+- LRN-01 まだ 1 週間たっていない
+
+| 番号 | 確かめ方 | 打ち手 |
+|---|---|---|
+| LRN-01 | 配信の状態 | 待つ |
+"""
+
+GLOSSARY_META = """# Meta 広告 33 用語集（見本）
+
+| 言葉 | Google 広告での意味 | Meta 広告での意味 | 取り違えると | くわしく |
+|---|---|---|---|---|
+| CPA（結果の単価） | 費用 ÷ コンバージョン | 消化金額 ÷ 結果 | 比べ方を誤る | 02 |
+
+| 名前 | 今 | いつ | 詳しい所 |
+|---|---|---|---|
+| Facebook 動画フィード（配置） | 廃止 | v24.0 | 00 |
+
+| 用語 | 英語 | 略語・別名・旧称 | 意味 | 間違えやすい点 | くわしく書いてあるメモ |
+|---|---|---|---|---|---|
+| 自動請求 | automatic payments | — | 請求日に請求 | 複数回 | 27 |
+"""
+
+
+def test_要因が箇条書きにあるツリーと_向きの無い番号も引ける(media):
+    t = media / "Meta広告の基礎" / "ロジックツリー"
+    t.mkdir()
+    (t / "L3_成果.md").write_text(TREE_META, encoding="utf-8")
+    with kb.use_media("meta"):
+        r = kb.logic_tree("ROAS", "下")
+        assert r["件数"]["当たり"] == 2 and r["行"][0]["要因"] == "直近の暫定"
+        assert r["行"][1]["扱い"].startswith("根拠に経験則・推測")
+        r = kb.logic_tree("LRN", "上")  # 向きの無い行は、どの向きでも返す
+        assert [x["番号"] for x in r["行"]] == ["LRN-01"]
+        idx = {m["略号"][0]: m["向き"] for m in kb.logic_tree()["指標の一覧"]}
+        assert idx == {"ROAS": ["下"], "LRN": []}
+
+
+def test_用語集の_意味が違う言葉と廃止の表も引き_英単語の途中には当てない(media):
+    (media / "Meta広告の基礎" / "33_用語集.md").write_text(GLOSSARY_META, encoding="utf-8")
+    with kb.use_media("meta"):
+        g = kb.glossary("CPA")
+        assert [r["形"] for r in g["行"]] == ["Google と同じ言葉で意味が違う"]  # automatic payments の「c pa」には当てない
+        assert kb.glossary("Facebook 動画フィード")["行"][0]["形"] == "廃止・変わったもの"
+
+
+def test_理解度テストは分野の記号でも絞れる(media):
+    with kb.use_media("meta"):
+        (media / "Meta広告の基礎" / "quiz.jsonl").write_text(
+            '{"id": "M-AC-01", "分野": "アカウント管理と安全", "問い": "二段階認証は？", "正解": "要る"}\n', encoding="utf-8")
+        assert [r["id"] for r in quiz.quiz(field="AC")["行"]] == ["M-AC-01"]
