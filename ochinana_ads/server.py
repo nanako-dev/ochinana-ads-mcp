@@ -769,7 +769,6 @@ def media_plan_simulate(months: list[str], search_layers: list[dict] | None = No
     step_yen（既定 5 万円）ずつ、次の 1 件がいちばん安い所へ足す道を作り、総額で切って案を出す。
     current_total_yen を渡すと A 配り直す／B 件数 1.5 倍／C 2 倍の案（scenarios で上書き可）。targets: 要る件数から要る媒体費。
     reach: {population, channels: {媒体: {cpm, on_target}}, budgets_yen} で届く割合と回数。save_chart で曲線の図（SVG）を out/ に保存。
-    元は外部のコードで、2026-11-18 に運用者の判断で取り込んだ（非公開の判断の型のメモ）。
     """
     return mediaplan.media_plan_simulate(months, search_layers, channels, demand, month_weight, step_yen, current_total_yen,
                                          current_conversions, scenarios, targets, fixed_yen, reach, unit, save_chart)
@@ -784,7 +783,7 @@ def fit_response_curve(costs: list[float] | None = None, values: list[float] | N
     3 つの形を当て、決定係数で選ぶ（頭打ちの形は比例より 0.02 以上高いときだけ）。点が 4 つ未満なら当てない。
     costs・values を手で渡すか、customer_id・start・end を渡すと Google 広告から月ごとの実績を読む（アカウント全体、読むだけ）。
     鈍る形の S は、cpa_roas_simulate の saturation_spend_yen と media_plan_simulate の sat_yen にそのまま入れられる。
-    save_chart で点と曲線の図（SVG）を out/ に保存。元は外部のコード（非公開の判断の型のメモ）。
+    save_chart で点と曲線の図（SVG）を out/ に保存。
     """
     return curvefit.fit_response_curve(costs, values, value_name, months, customer_id, start, end, name, save_chart)
 

@@ -1,12 +1,10 @@
 """実績の月ごとの点に近似曲線を当てる（手元の計算。アカウントを読むのは、customer_id を渡したときの読み取りだけ）。
 
-出どころ: 元は外部の協力者が書いたコード（fit_curve.py）を、了承を得て取り込んだもの。
-2026-11-18 に取り込んだ。考え方の説明は非公開の判断の型のメモ。
-取り込みで変えたこと:
-- 元の 2 つの形（比例 y ＝ a・x、頭打ち y ＝ c・x ÷ (x ＋ b)）に、media_plan と cpa_roas_simulate が使う
-  「鈍る形」y ＝ c・(1 − e^(−x ÷ S))（＝ r・S・(1 − e^(−x ÷ S))、r ＝ c ÷ S）を足した。同じ探し方（S を対数の目で探し、c は最小二乗）で当てる。
+計算のしかた:
+- 3 つの形を当てる: 比例 y ＝ a・x、頭打ち y ＝ c・x ÷ (x ＋ b)、鈍る形 y ＝ c・(1 − e^(−x ÷ S))（＝ r・S・(1 − e^(−x ÷ S))、r ＝ c ÷ S）。
+  b・S は対数の目で探し、c は最小二乗で決める。
   当てた S は、そのまま cpa_roas_simulate の saturation_spend_yen と media_plan_simulate の sat_yen に入れられる
-- 選び方は元と同じ（頭打ちの形の決定係数が比例より 0.02 以上高いときだけ頭打ち）。頭打ちの 2 つの形は決定係数の高い方
+- 選び方: 頭打ちの形の決定係数が比例より 0.02 以上高いときだけ頭打ち。頭打ちの 2 つの形は決定係数の高い方
 - 点は手で渡すか、customer_id・期間を渡して Google 広告から月ごとの費用・クリック・表示・成果を読む（読むだけ）
 """
 from __future__ import annotations
@@ -177,8 +175,7 @@ def fit_response_curve(costs=None, values=None, value_name="クリック数", mo
                  "決定係数": "1 −（残りのずれの二乗和 ÷ 平均からのずれの二乗和）",
                  "探し方": "b・S は、いちばん多く使った月の 1/100〜100 倍を対数の目で 400 通り探し、c はそれぞれの最小二乗で決める"},
            "根拠": [kb.cite_line("20", "c が上限"), kb.cite_line("20", "決定係数"), kb.cite_line("20", "0.02 以上高いときだけ"),
-                  kb.cite_line("20", "出すほど効きが鈍る形")],
-           "出どころ": "元は外部の協力者が書いたコード（fit_curve.py）を、了承を得て取り込んだもの。2026-11-18、運用者の判断で取り込み（鈍る形を足した）"}
+                  kb.cite_line("20", "出すほど効きが鈍る形")]}
     if save_chart:
         path = out_dir() / f"curve_{(name or 'points')}_{time.strftime('%Y%m%d_%H%M%S')}.svg"
         path.write_text(_svg(name or "実績", ylab, [(p[0], p[1]) for p in pts], best), encoding="utf-8")

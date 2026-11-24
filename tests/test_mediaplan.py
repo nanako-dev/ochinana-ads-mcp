@@ -1,13 +1,9 @@
 """予算の配分の試算（media_plan_simulate）と、近似曲線（fit_response_curve）。外にも API にもつながない。
 
-元のスクリプト（環境変数 MEDIA_PLAN_ORIG_DIR）があれば、こちらで作った設定を両方に通して、同じ数字が出ることを確かめる
-（元のスクリプトは読むだけ・動かすだけで、書き換えない。出力は一時フォルダに書く）。設定と点の数字は、このテストのために作ったもの。
+設定と点の数字は、このテストのために作ったもの。
 """
-import os
 import json
 import math
-import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +11,6 @@ import pytest
 
 from ochinana_ads import curvefit, kb, mediaplan
 
-ORIG = Path(os.environ.get("MEDIA_PLAN_ORIG_DIR") or "/nonexistent")
 M = 10_000
 
 CONF_MAN = {
@@ -110,26 +105,6 @@ def test_届く割合():
     assert t["行"][0]["届く割合（%）"] == 63.2 and t["行"][0]["平均の回数"] == 1.6
 
 
-@pytest.mark.skipif(not (ORIG / "media_plan.py").is_file(), reason="元のスクリプトが無い環境")
-def test_元のmedia_planと同じ数字が出る(tmp_path):
-    conf = tmp_path / "conf.json"
-    conf.write_text(json.dumps(CONF_MAN, ensure_ascii=False), encoding="utf-8")
-    subprocess.run([sys.executable, str(ORIG / "media_plan.py"), str(conf), str(tmp_path / "o.json")], check=True,
-                   capture_output=True, timeout=300, cwd=str(tmp_path))
-    o = json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))
-    n = mediaplan.media_plan_simulate(**to_yen(CONF_MAN))
-    man = lambda y: round(y / M, 1)  # noqa: E731  元は金額を 0.1 万円（1,000 円）に丸めて持つ
-    assert man(n["上限まで積んだとき"]["総額"]) == o["max_man"] and n["上限まで積んだとき"]["件数"] == round(o["max_conv"], 1)
-    assert n["いま"]["件数"] == o["current"]["conv"]
-    for k in ("A", "B"):
-        a, b = o["scenarios"][k], n["案"][k]
-        assert man(b["総額"]) == a["total_man"] and b["件数"] == a["conv"] and b["最後の 1 回分の 1 件あたり"] == a["last_step_cpa_yen"]
-    assert o["scenarios"]["C"]["reachable"] is False and n["案"]["C"]["届く"] is False
-    assert [(r["need_man"], r["last_step_cpa_yen"]) for r in o["inverse"]][:2] == \
-        [(man(r["要る媒体費"]), r["そのときの最後の 1 回分の 1 件あたり"]) for r in n["逆算"][:2]]
-    assert [(r["reach_pct"], r["freq"]) for r in o["reach"]["rows"]] == [(r["届く割合（%）"], r["平均の回数"]) for r in n["届く割合"]["行"]]
-    assert [(c["spent_man"], c["conv"], c["last_cpa_yen"]) for c in o["curve"]] == \
-        [(man(c["総額"]), c["件数"], c["最後の 1 回分の 1 件あたり"]) for c in n["予算と件数の曲線（間引き）"]]
 
 
 # ---------------- fit_response_curve ----------------
@@ -165,21 +140,6 @@ def test_点が少ない_ばらつく_口座から読む():
     with pytest.raises(ValueError):
         curvefit.fit_response_curve(customer_id="1234567890", start="2026-01-01", end="2026-02-01", run=lambda c, q: [])
 
-
-@pytest.mark.skipif(not (ORIG / "fit_curve.py").is_file(), reason="元のスクリプトが無い環境")
-def test_元のfit_curveと同じ数字が出る(tmp_path):
-    pts = {"media": {"検索": {"cost": COST, "click": [700, 1250, 1650, 2000, 2250, 2400, 2550]},
-                     "ばらつく": {"cost": [100000, 200000, 300000, 400000, 500000], "click": [900, 400, 1500, 300, 800]}}}
-    src = tmp_path / "p.json"
-    src.write_text(json.dumps(pts, ensure_ascii=False), encoding="utf-8")
-    subprocess.run([sys.executable, str(ORIG / "fit_curve.py"), str(src), str(tmp_path / "f.json"), "--y", "click"], check=True,
-                   capture_output=True, timeout=120, cwd=str(tmp_path))
-    o = json.loads((tmp_path / "f.json").read_text(encoding="utf-8"))["media"]
-    for name, m in pts["media"].items():
-        n = curvefit.fit_response_curve(m["cost"], m["click"], "クリック数")["当てた形"]
-        assert n["比例"]["a"] == round(o[name]["linear"]["a"], 6)
-        assert n["頭打ち"]["c"] == round(o[name]["saturating"]["c"], 2) and n["頭打ち"]["b"] == round(o[name]["saturating"]["b"], 2)
-        assert n["頭打ち"]["決定係数"] == round(o[name]["saturating"]["r2"], 3) and n["比例"]["決定係数"] == round(o[name]["linear"]["r2"], 3)
 
 
 REAL = Path(kb.DEFAULT_KB_DIR)

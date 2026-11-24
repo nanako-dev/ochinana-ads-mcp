@@ -84,7 +84,7 @@ def test_出すほど効きが鈍る_いまの実績に合わせる():
     assert "66.7" not in str(out["予算の案"]["頭打ち"])  # 合わせた後の上限は r × S
     top = r * 400000
     assert f"{top:.1f} 件" in out["予算の案"]["頭打ち"]
-    assert "元のコードは写していない" in out["考え方の出どころ"]
+    assert "最後に足した分" in out["考え方"]
 
 
 def test_入力の誤り():
