@@ -174,3 +174,19 @@ def test_理解度テストは分野の記号でも絞れる(media):
         (media / "Meta広告の基礎" / "quiz.jsonl").write_text(
             '{"id": "M-AC-01", "分野": "アカウント管理と安全", "問い": "二段階認証は？", "正解": "要る"}\n', encoding="utf-8")
         assert [r["id"] for r in quiz.quiz(field="AC")["行"]] == ["M-AC-01"]
+
+
+def test_媒体で呼び名が違う指標も_略号につないで引ける(media):
+    t = media / "Meta広告の基礎" / "ロジックツリー"
+    t.mkdir()
+    (t / "L1.md").write_text("""# L1（見本）
+
+## 2. インプレッション（IMP）
+
+| 番号 | 要因 | 確かめ方 |
+|---|---|---|
+| IMP-下-01 | 予算が足りない | 配信の状態 |
+""", encoding="utf-8")
+    with kb.use_media("meta"):
+        assert kb.logic_tree("表示回数", "下")["件数"]["当たり"] == 1  # Google の呼び名でも引ける
+        assert kb.logic_tree("インプレッション", "下")["件数"]["当たり"] == 1

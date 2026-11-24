@@ -1142,6 +1142,21 @@ def _glossary_names(query: str, docs: List[dict]) -> List[str]:
     return extra
 
 
+# 媒体で呼び名が違う指標（Google は「表示回数」、Meta は「インプレッション」など）を、ツリーの略号へつなぐ
+_METRIC_ALIAS_SRC = {
+    ("IMP",): ("インプレッション", "インプレッション数", "表示回数", "imp", "impressions"),
+    ("CTR",): ("クリック率",),
+    ("CPC",): ("クリック単価", "平均クリック単価"),
+    ("CLK",): ("クリック数", "クリック"),
+    ("CPM",): ("インプレッション単価", "1000回表示あたりの単価", "千回表示単価"),
+    ("CV", "RES"): ("コンバージョン", "コンバージョン数", "成果", "成果の数", "結果", "結果の数", "cv", "cvs"),
+    ("CPA",): ("獲得単価", "コンバージョン単価", "結果の単価", "顧客獲得単価"),
+    ("ROAS",): ("広告費用対効果", "roas"),
+    ("CVR",): ("コンバージョン率", "成果の率"),
+}
+METRIC_ALIASES = {norm(a): codes for codes, al in _METRIC_ALIAS_SRC.items() for a in al}
+
+
 def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results: int = 15,
                max_chars: int = 9000, cell_chars: int = 300) -> dict:
     max_results = _clamp(max_results, 15, MAX_RESULTS)
@@ -1174,7 +1189,7 @@ def logic_tree(metric: str = "", direction: str = "", id: str = "", max_results:
     want_dir = _direction(direction)
     idx = _metric_index(docs)
     q = norm(metric)
-    names = {q} | set(_glossary_names(metric, docs))
+    names = {q} | set(_glossary_names(metric, docs)) | {norm(c) for c in METRIC_ALIASES.get(q, ())}
     matched = []
     for m in idx:
         codes_n = [norm(c) for c in m["codes"]]
