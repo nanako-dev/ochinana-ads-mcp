@@ -140,6 +140,7 @@
 | 当てはめ用の状況 | 生成された 2 本はどちらも着地ページの title と同文 | 観察（公表内容と一致） |
 
 - h1・h2・本文のどこから取るかを分けて検証した記事は、英語・日本語とも見つからなかった ❓
+- 観察（2026-11-24、1 つのキャンペーンで確認）: Google が足した見出し・説明文は、その広告グループの最終ページの title と同じ文か、title の一部を切り出した文だった。meta description と本文の導入文からは作られていなかった。title の区切りの「｜」は、足された文では「 | 」に変わる（検索語句と広告の組み合わせの見出しでは「｜」のまま出ることがある）。件数が少ないので、一般の決まりとは言えない〔観察〕
 - 実務上の読み方（推測）: 内容の少ない小さなサイトでは、まず title がそのまま使われやすい。生成される文面を変えたいなら、最初に手を入れる場所は title と meta description
 
 ## 6. 生成された文面の確認方法
@@ -159,11 +160,13 @@ API での確認 ✅
 
 | 目的 | 使うもの |
 |---|---|
-| 広告に付いた Google 作成の文面 | `ad_group_ad_asset_view.source`。値は `ADVERTISER` か `AUTOMATICALLY_CREATED`（v26 で確認） |
+| 広告に付いた Google 作成の文面 | `ad_group_ad_asset_view.source`（広告とアセットのつながりの出どころ）。値は `ADVERTISER` か `AUTOMATICALLY_CREATED`（v26 で確認）。アセットそのものの出どころ `asset.source` は `ADVERTISER` のままのことがあるので、`asset.source` で絞ると Google 作成の文面を取りこぼす（2026-11-24、API で実際に確認。公式の記載なし ❓） |
 | 検索語句がなぜ一致したか | `search_term_view` の `segments.search_term_match_source`。`AI_MAX_KEYWORDLESS`（サイトや LP の内容から。キーワード不要）、`AI_MAX_BROAD_MATCH` |
 | 検索語句×見出し×着地ページ | `ai_max_search_term_ad_combination_view` の `search_term`、`headline`（連結した見出し）、`landing_page`。分けられるのは日付だけ。集計の突き合わせには使わない（二重に数えるため） |
 | 拡張された着地ページ | `expanded_landing_page_view.expanded_final_url` |
 | 拡張 URL と一緒に出た文面 | `final_url_expansion_asset_view` |
+
+- 注（探し方）: GAQL の WHERE では OR とかっこが使えない。つながりの側とアセットの側の両方を見たいときは、`ad_group_ad_asset_view.field_type IN ('HEADLINE', 'DESCRIPTION')` と期間だけで絞って両方の列を読み、手元で分ける。`ai_max_search_term_ad_combination_view.headline` は連結した見出しで、入稿した見出しをつないだものが大半。Google 作成の文面が入っているかは、同じ広告グループの文面と照らして見分ける（2026-11-24、API で確認）。
 
 ## 7. 削除と制御
 
@@ -352,7 +355,7 @@ Google 公式（ブログ）
 | 生成文面は、元にしたソースが変わると自動で消える。LP の変更は 48 時間以内に反映 | 16740321、11259373 |
 | AdsBot のクロールは約 2 週間ごと | webmasters 9679690 |
 | プレビューは、オプトインなしで URL から最大 10 個の例を作る | 11259373 |
-| 生成された文面は `source = AUTOMATICALLY_CREATED`、画面では［提供者:］＝［Google AI］で見分けられる | API、16739013 |
+| 生成された文面は `ad_group_ad_asset_view.source = AUTOMATICALLY_CREATED`（`asset.source` は広告主のままのことがある）、画面では［提供者:］＝［Google AI］で見分けられる | API（2026-11-24 に実際に確認）、16739013 |
 | 実際に出た見出しは［検索語句と広告の組み合わせ］で見られる | 16470459 |
 | AdsBot の名乗りで自分のページを開いて確かめる手順は、公式が案内している | adspolicy 16431325 |
 | A/B で少し違う内容を見せることは、広告ポリシー上は問題ない。検索側の指針では、テストは必要な期間だけ | adspolicy 15938075、Search Central |
@@ -403,3 +406,4 @@ Google 公式（ブログ）
 - 2026-11-17 後始末: §3-2 の箇条書きの末尾に「AdsBot について公式に書かれていること・いないことの一覧は 94_裏取りの記録_41-44.md の 2-2」の 1 行を追加（❓ は変えず） → 理由: LP の裏取り担当の提案（94_裏取りの記録_41-44.md 3 章）を受けた取りまとめ役の指示。参照先の 2-2 の表で JavaScript の実行が ❓ のままであることを確かめた → 出典: 94_裏取りの記録_41-44.md 2-2（2026-11-17 時点）
 - 2026-11-17 後始末: §6 集計行の名前「キーワード拡張」だけ → 「拡張一致」（別の箇所では「キーワード拡張」とも書く △）を併記 → 04 §4 は「拡張一致」と書き食い違っていた。16470459 の日本語版の中で両方の表記が混在している → https://support.google.com/google-ads/answer/16470459?hl=ja （理解度テストの点検担当が 2026-11-17 取得）
 - 2026-11-17 後始末 2: §2 の表「自動で消える条件」に、RSA の［パフォーマンス ラベル］列の廃止（05 §4）との関係を注記した → 理由: 03 §2 と 05 §4 の関係が説明されていなかった（90_核となる理解 §13 の 5）。16740321 英語版を取り直し「if an asset is assigned a "Low performance" label」が今も載っていること、9564897 英語版「The “Performance label” column has been deprecated」を確認。API の項目は ads-intel/state/api_fields/latest.json（v26）で確認 → 出典: https://support.google.com/google-ads/answer/16740321?hl=en 、https://support.google.com/google-ads/answer/9564897?hl=en
+- 2026-11-24 追記: §6「API での確認」の表の 1 行目に「`asset.source` は広告主のままのことがあり、そこで絞ると取りこぼす」を足し、表の下に探し方の注を足した。§15 の「土台にする事実」の行も `ad_group_ad_asset_view.source` と書き直した。§5 に、Google が足した文と title・meta description の関係の観察を 1 行足した（どれも API と管理画面で見た仕様の発見。ルール表 R-自動化-025、理解度テスト KW-31）
