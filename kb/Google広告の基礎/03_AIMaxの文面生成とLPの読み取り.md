@@ -166,7 +166,7 @@ API での確認 ✅
 | 拡張された着地ページ | `expanded_landing_page_view.expanded_final_url` |
 | 拡張 URL と一緒に出た文面 | `final_url_expansion_asset_view` |
 
-- 注（探し方）: GAQL の WHERE では OR とかっこが使えない。つながりの側とアセットの側の両方を見たいときは、`ad_group_ad_asset_view.field_type IN ('HEADLINE', 'DESCRIPTION')` と期間だけで絞って両方の列を読み、手元で分ける。`ai_max_search_term_ad_combination_view.headline` は連結した見出しで、入稿した見出しをつないだものが大半。Google 作成の文面が入っているかは、同じ広告グループの文面と照らして見分ける（2026-11-24、API で確認）。
+- 注（探し方）: GAQL の WHERE では OR とかっこが使えない。つながりの側とアセットの側の両方を見たいときは、`ad_group_ad_asset_view.field_type IN ('HEADLINE', 'DESCRIPTION')` と期間だけで絞って両方の列を読み、手元で分ける。`ai_max_search_term_ad_combination_view.headline` は連結した見出しで、入稿した見出しをつないだものが大半。Google 作成の文面が入っているかは、同じ広告グループの文面と照らして見分ける（2026-11-24、API で確認）。Google が足した文は、足された広告グループとは別の広告グループの組み合わせにも出ることがあるので、同じ広告グループで見つからなければ、同じキャンペーンのほかの広告グループの文面とも照らす（2026-11-24、API で確認）。そのときの着地ページは、文が足された側の広告グループのページだった（1 つのキャンペーンで確認。一般の決まりとは言えない〔観察〕）。
 
 ## 7. 削除と制御
 
@@ -407,3 +407,4 @@ Google 公式（ブログ）
 - 2026-11-17 後始末: §6 集計行の名前「キーワード拡張」だけ → 「拡張一致」（別の箇所では「キーワード拡張」とも書く △）を併記 → 04 §4 は「拡張一致」と書き食い違っていた。16470459 の日本語版の中で両方の表記が混在している → https://support.google.com/google-ads/answer/16470459?hl=ja （理解度テストの点検担当が 2026-11-17 取得）
 - 2026-11-17 後始末 2: §2 の表「自動で消える条件」に、RSA の［パフォーマンス ラベル］列の廃止（05 §4）との関係を注記した → 理由: 03 §2 と 05 §4 の関係が説明されていなかった（90_核となる理解 §13 の 5）。16740321 英語版を取り直し「if an asset is assigned a "Low performance" label」が今も載っていること、9564897 英語版「The “Performance label” column has been deprecated」を確認。API の項目は ads-intel/state/api_fields/latest.json（v26）で確認 → 出典: https://support.google.com/google-ads/answer/16740321?hl=en 、https://support.google.com/google-ads/answer/9564897?hl=en
 - 2026-11-24 追記: §6「API での確認」の表の 1 行目に「`asset.source` は広告主のままのことがあり、そこで絞ると取りこぼす」を足し、表の下に探し方の注を足した。§15 の「土台にする事実」の行も `ad_group_ad_asset_view.source` と書き直した。§5 に、Google が足した文と title・meta description の関係の観察を 1 行足した（どれも API と管理画面で見た仕様の発見。ルール表 R-自動化-025、理解度テスト KW-31）
+- 2026-11-24 追記 2: §6 の探し方の注に、Google が足した文が別の広告グループの組み合わせにも出ることと、そのときの着地ページの観察を足した
