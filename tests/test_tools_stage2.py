@@ -341,6 +341,31 @@ def test_広げた着地ページが読めなくても_ほかの欄は返す():
     rows = api_rows()
     del rows["final_url_expansion_asset_view"]  # にせの API が KeyError を出す
     out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
-    assert out["広げた着地ページと、一緒に出た文"]["広げた着地ページ"].startswith("読めなかった")
-    assert out["件数"]["広げた着地ページ"] == "読めなかった"
+    e = out["広げた着地ページと、一緒に出た文"]
+    assert e["一緒に出た文"].startswith("読めなかった")
+    assert e["広げた着地ページ"].startswith("まだ無い")  # 2 つは別に読むので、片方の失敗でもう片方は止まらない
+    assert out["件数"]["広げた着地ページと一緒に出た文"] == "読めなかった" and out["件数"]["広げた着地ページ"] == 0
     assert out["自動で作られた見出し・説明文"].startswith("まだ無い")
+
+
+def test_広げたURLと一緒に出た文は_必ず要る絞り込みを付ける():
+    q = gaql.generated_text_queries("2026-10-01", "2026-10-31")["expansion_texts"]
+    assert "campaign.advertising_channel_type = 'SEARCH'" in q.split(" WHERE ")[1]  # 無いと MISSING_REQUIRED_FILTER
+
+
+def test_別の広告グループで足された文も_同じキャンペーンなら見分ける():
+    rows = api_rows()
+    rows["ad_group_ad_asset_view"] = [
+        _text_row("いつ行くか", "ADVERTISER", "ADVERTISER", group="時期"),
+        _text_row("場所で選ぶ | 夜の案内", "AUTOMATICALLY_CREATED", "ADVERTISER", group="一覧"),  # 足されたのは「一覧」
+    ]
+    rows["ai_max_search_term_ad_combination_view"] = [
+        NS(campaign=NS(id=1, name="検索A"), ad_group=NS(id=11, name="時期"),  # 出たのは「時期」の組み合わせ
+           ai_max_search_term_ad_combination_view=NS(search_term="q", headline=h, landing_page="https://example.com/"),
+           metrics=M(4, 1, 30))
+        for h in ["場所で選ぶ｜夜の案内", "いつ行くか", "どこにも無い見出し"]]
+    out = tools.get_generated_text("1112223333", "2026-10-01", "2026-10-31", run=fake_run(rows))
+    origin = {c["見出し"]: c["見出しの作り手"] for c in out["見出しと着地 URL の組み合わせ"]}
+    assert origin["場所で選ぶ｜夜の案内"] == tools.ORIGIN_GOOGLE_OTHER_GROUP
+    assert origin["いつ行くか"] == tools.ORIGIN_ADVERTISER
+    assert origin["どこにも無い見出し"] == tools.ORIGIN_OTHER

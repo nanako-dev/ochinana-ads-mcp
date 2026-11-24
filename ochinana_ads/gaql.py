@@ -319,7 +319,10 @@ def generated_text_queries(start: str, end: str) -> Dict[str, str]:
         "expansion_texts": (
             "SELECT campaign.id, campaign.name, ad_group.id, ad_group.name, asset.id, asset.text_asset.text, "
             "final_url_expansion_asset_view.field_type, final_url_expansion_asset_view.final_url, "
-            f"{METRICS} FROM final_url_expansion_asset_view WHERE {where}"
+            # キャンペーンの種類・キャンペーン・広告グループのどれかで絞らないと MISSING_REQUIRED_FILTER になる
+            # （2026-11-24 実物で確認。公式の AI Max のレポートの例も種類で絞る）。検索では広告グループの単位で返る
+            f"{METRICS} FROM final_url_expansion_asset_view "
+            f"WHERE campaign.advertising_channel_type = 'SEARCH' AND {where}"
         ),
     }
 

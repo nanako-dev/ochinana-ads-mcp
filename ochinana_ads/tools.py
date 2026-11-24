@@ -390,6 +390,7 @@ ASSET_SOURCE_JA = {"ADVERTISER": "広告主", "AUTOMATICALLY_CREATED": "自動�
 AUTO_SOURCE = "AUTOMATICALLY_CREATED"
 ORIGIN_ADVERTISER = "入稿した文をつないだもの"
 ORIGIN_GOOGLE = "Google が足した文を含む"
+ORIGIN_GOOGLE_OTHER_GROUP = "Google が足した文を含む（同じキャンペーンの別の広告グループで足された文）"
 ORIGIN_OTHER = "入稿した文とも Google が足した文とも一致しない部分がある"
 ORIGIN_UNKNOWN = "見分けられない（この広告グループの文を読めなかった）"
 _SEPARATORS = re.compile(r"[\s|｜\-–—・/／:：,、。.!！?？]+")
@@ -541,13 +542,26 @@ def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFA
     texts = [ja_text(t) for t in g["texts"] if _is_generated(t)]
     n_adv = sum(1 for t in g["texts"] if not _is_generated(t))
     combos = _merge(g["combinations"], ["campaign", "ad_group", "headline", "landing_page"])
+    by_campaign: Dict[str, Dict[str, set]] = {}
+    for (camp, _), sets in by_group.items():
+        cs = by_campaign.setdefault(camp, {"adv": set(), "gen": set()})
+        cs["adv"] |= sets["adv"]
+        cs["gen"] |= sets["gen"]
     for c in combos:
         sets = by_group.get((c["campaign"], c["ad_group"]), {"adv": set(), "gen": set()})
         c["origin"] = _headline_origin(c["headline"], sets["adv"], sets["gen"] - sets["adv"])
+        if c["origin"] in (ORIGIN_OTHER, ORIGIN_UNKNOWN):  # Google が足した文は、別の広告グループの組み合わせにも出ることがある
+            cs = by_campaign.get(c["campaign"], {"adv": set(), "gen": set()})
+            wide = _headline_origin(c["headline"], sets["adv"] | cs["adv"], cs["gen"] - sets["adv"])
+            if wide == ORIGIN_GOOGLE:
+                c["origin"] = ORIGIN_GOOGLE_OTHER_GROUP
+            elif wide == ORIGIN_ADVERTISER:
+                c["origin"] = ORIGIN_ADVERTISER
     pages = [{**p, "source": convert.ja(PAGE_SOURCE_JA, p["source"])}
              for p in _merge(g["landing_pages"], ["campaign", "ad_group", "url", "source"])]
     auto_pages = [p for p in pages if p["source"] == PAGE_SOURCE_JA["AUTOMATIC"]]
-    origins = {k: sum(1 for c in combos if c["origin"] == k) for k in (ORIGIN_ADVERTISER, ORIGIN_GOOGLE, ORIGIN_OTHER, ORIGIN_UNKNOWN)}
+    origins = {k: sum(1 for c in combos if c["origin"] == k)
+               for k in (ORIGIN_ADVERTISER, ORIGIN_GOOGLE, ORIGIN_GOOGLE_OTHER_GROUP, ORIGIN_OTHER, ORIGIN_UNKNOWN)}
     out = {
         "対象アカウント": _label(acct),
         "期間": _period(start, end, acct),
@@ -585,7 +599,9 @@ def get_generated_text(customer_id: str, start: str, end: str, top_n: int = DEFA
         "見出しと着地 URL の組み合わせ": (
             "AI Max が検索語に合わせて実際に出した見出しと着地 URL。見出しは、入稿した見出しをつないだものが大半で、"
             "Google が足した文を含むこともある。「見出しの作り手」は、同じ広告グループで期間に表示があった文と"
-            "文字が一致するかで見分けたもの（一致しない部分がある行は、Google が作り直した文の可能性がある）"),
+            "文字が一致するかで見分けたもの。同じ広告グループで見分けられないときは、同じキャンペーンのほかの広告グループの文とも比べる"
+            "（Google が足した文は、足された広告グループとは別の広告グループの組み合わせにも出ることがある。2026-11-24 実物で確認）。"
+            "区切りの「 | 」と「｜」は同じものとして比べる。一致しない部分がある行は、Google が作り直した文の可能性がある"),
     }
     return out
 
@@ -600,27 +616,40 @@ def _query_part(url: str) -> str:
     return "あり" if "?" in (url or "") else "なし"
 
 
-def _expansions(cid: str, start: str, end: str, run: Search, rows) -> dict:
-    """expanded_landing_page_view と final_url_expansion_asset_view。読めなくても、ほかの欄は返す。"""
+def _read_or_reason(fn):
+    """まだ本物で確かめていない見方は、失敗しても理由を添えて返し、ほかの欄を止めない。"""
     try:
-        e = fetch.expansions(cid, start, end, run)
-    except Exception as ex:  # noqa: BLE001  まだ本物で確かめていない見方なので、失敗は理由を添えて返す
+        return fn(), None
+    except Exception as ex:  # noqa: BLE001
         reason = explain_api_error(ex) if hasattr(ex, "failure") else f"{type(ex).__name__}: {str(ex)[:200]}"
-        return {"広げた着地ページ": f"読めなかった（{reason}）", "一緒に出た文": "読めなかった（同上）"}
-    pages = [{**p, "query": _query_part(p["url"])} for p in _merge(e["pages"], ["campaign", "ad_group", "url"])]
-    texts = [{**t, "field_type": convert.ja(FIELD_JA, t["field_type"])}
-             for t in _merge(e["texts"], ["campaign", "ad_group", "field_type", "text", "url"])]
-    out = {
-        "広げた着地ページ": rows(pages, {"campaign": "キャンペーン", "ad_group": "広告グループ", "url": "クリックが向かった URL",
-                                     "query": "URL の ? 以降"}) if pages else "まだ無い（この期間に表示が無い）",
-        "一緒に出た文": rows(texts, {"campaign": "キャンペーン", "ad_group": "広告グループ", "field_type": "種類",
-                                   "text": "文", "url": "着地 URL"}) if texts else "まだ無い（この期間に、広げた URL と一緒に出た文の記録は 0 件）",
+        return None, f"読めなかった（{reason}）"
+
+
+def _expansions(cid: str, start: str, end: str, run: Search, rows) -> dict:
+    """expanded_landing_page_view と final_url_expansion_asset_view を、それぞれ別に読む。"""
+    raw_pages, err_pages = _read_or_reason(lambda: fetch.expanded_pages(cid, start, end, run))
+    raw_texts, err_texts = _read_or_reason(lambda: fetch.expansion_texts(cid, start, end, run))
+    if err_pages:
+        pages_out = err_pages
+    else:
+        pages = [{**p, "query": _query_part(p["url"])} for p in _merge(raw_pages, ["campaign", "ad_group", "url"])]
+        pages_out = rows(pages, {"campaign": "キャンペーン", "ad_group": "広告グループ", "url": "クリックが向かった URL",
+                                 "query": "URL の ? 以降"}) if pages else "まだ無い（この期間に表示が無い）"
+    if err_texts:
+        texts_out = err_texts
+    else:
+        texts = [{**t, "field_type": convert.ja(FIELD_JA, t["field_type"])}
+                 for t in _merge(raw_texts, ["campaign", "ad_group", "field_type", "text", "url"])]
+        texts_out = rows(texts, {"campaign": "キャンペーン", "ad_group": "広告グループ", "field_type": "種類",
+                                 "text": "文", "url": "着地 URL"}) if texts else "まだ無い（この期間に、広げた URL と一緒に出た文の記録は 0 件）"
+    return {
+        "広げた着地ページ": pages_out,
+        "一緒に出た文": texts_out,
         "読み方": ("広げた着地ページは、実際にクリックが向かった URL ごとの実績（expanded_landing_page_view）。"
                  "「URL の ? 以降」が「なし」の行は、URL に計測の印（utm など）が付いていない可能性がある"
                  "（トラッキングテンプレートで付けている印は、ここには出ない）。"
-                 "一緒に出た文は、Google が広げた着地 URL と一緒に出した見出し・説明文（final_url_expansion_asset_view）"),
+                 "一緒に出た文は、Google が広げた着地 URL と一緒に出した見出し・説明文（final_url_expansion_asset_view。検索キャンペーンだけ）"),
     }
-    return out
 
 
 def audit_landing_page(url: str) -> dict:

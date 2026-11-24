@@ -185,18 +185,22 @@ def generated(cid: str, start: str, end: str, run: Search) -> dict:
     return {"texts": texts, "combinations": combos, "landing_pages": pages}
 
 
-def expansions(cid: str, start: str, end: str, run: Search) -> dict:
-    """広げた着地ページと、一緒に出た文。どちらも読めないことがあるので、呼ぶ側で失敗を受ける。"""
-    q = gaql.generated_text_queries(start, end)
-    pages, texts = [], []
-    for r in run(cid, q["expanded_pages"]):
-        pages.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name,
-                      "url": r.expanded_landing_page_view.expanded_final_url, **_metrics(r.metrics)})
-    for r in run(cid, q["expansion_texts"]):
+def expanded_pages(cid: str, start: str, end: str, run: Search) -> List[dict]:
+    """広げた着地ページ（実際にクリックが向かった URL）。"""
+    q = gaql.generated_text_queries(start, end)["expanded_pages"]
+    return [{"campaign": r.campaign.name, "ad_group": r.ad_group.name,
+             "url": r.expanded_landing_page_view.expanded_final_url, **_metrics(r.metrics)} for r in run(cid, q)]
+
+
+def expansion_texts(cid: str, start: str, end: str, run: Search) -> List[dict]:
+    """広げた URL と一緒に出た文。"""
+    q = gaql.generated_text_queries(start, end)["expansion_texts"]
+    out = []
+    for r in run(cid, q):
         v = r.final_url_expansion_asset_view
-        texts.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name, "field_type": v.field_type.name,
-                      "text": r.asset.text_asset.text, "url": v.final_url, **_metrics(r.metrics)})
-    return {"pages": pages, "texts": texts}
+        out.append({"campaign": r.campaign.name, "ad_group": r.ad_group.name, "field_type": v.field_type.name,
+                    "text": r.asset.text_asset.text, "url": v.final_url, **_metrics(r.metrics)})
+    return out
 
 
 # ---- 段 3 ----
