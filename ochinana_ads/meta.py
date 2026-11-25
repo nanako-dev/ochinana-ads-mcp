@@ -101,7 +101,7 @@ def token_file_status() -> dict:
     """鍵のファイルの確かめ（中身は開かない。有無・大きさ・権限・置き場所だけ）。"""
     path = os.environ.get(ENV_TOKEN_FILE)
     if not path:
-        return {"設定": "無い", "直し方": f"Meta のアクセストークン（ads_read の権限だけ）を 1 行だけ書いたファイルを作り、"
+        return {"設定": "無い", "直し方": f"Meta のシステムユーザーのアクセストークンを 1 行だけ書いたファイルを作り、"
                                       f"chmod 600 にして、環境変数 {ENV_TOKEN_FILE} にその場所を入れて、AI のアプリを起動し直す"}
     p = Path(path).expanduser()
     if not p.is_file():
@@ -492,18 +492,51 @@ def daily(account_id: str, start: str, end: str, level: str = "campaign", client
     return out
 
 
+WRITE_SCOPES = ("ads_management", "business_management", "catalog_management", "pages_manage_ads")
+WRITE_NOTE = ("このトークンは書き込みの権限も持っています。道具は読むだけですが、システムユーザーの割り当てを見るだけ"
+              "（広告アカウントは「パフォーマンスを確認」だけ）にすると二重の守りになります")
+
+
+def token_scopes(c: Client) -> List[str]:
+    """トークンに許された権限の名前（GET /me/permissions の status=granted）。値は権限の名前だけで、鍵ではない。"""
+    data = c.get("/me/permissions")
+    return sorted({str(x.get("permission")) for x in (data.get("data") or [])
+                   if isinstance(x, dict) and x.get("status") == "granted" and x.get("permission")})
+
+
+def _scope_step(c: Client) -> dict:
+    try:
+        scopes = token_scopes(c)
+    except MetaError as ex:
+        return {"段": "1-2. トークンの権限", "結果": "確かめられなかった（止めない）",
+                "理由": str(ex),
+                "注記": "権限を API で確かめられなかった。Marketing API のユースケースのアプリでは ads_management と ads_read が"
+                        "外せないことがある（2026-11-25 に画面で確認）。その場合は、" + WRITE_NOTE}
+    write = [x for x in scopes if x in WRITE_SCOPES]
+    step = {"段": "1-2. トークンの権限", "結果": "注意（止めない）" if write else "よい", "権限": scopes or "無し"}
+    if write:
+        step["注記"] = WRITE_NOTE + f"（書き込みに使える権限: {'・'.join(write)}）"
+    if "ads_read" not in scopes and "ads_management" not in scopes:
+        step["結果"] = "直す"
+        step["注記"] = "Insights を読む権限（ads_read か ads_management）が見当たらない。トークンを作り直す"
+    return step
+
+
 def check(client: Optional[Client] = None) -> dict:
-    """check_connection の Meta の部分。鍵のファイル → 許可リスト → 各アカウント、の順に見る。"""
+    """check_connection の Meta の部分。鍵のファイル → トークンの権限 → 許可リスト → 各アカウント、の順に見る。"""
     steps: List[dict] = []
     f = token_file_status()
     steps.append({"段": "1. 鍵のファイル", "結果": "よい" if f.get("ファイル") == "ある" else "まだ", **f})
+    if f.get("ファイル") == "ある":
+        client = _client(client)
+        steps.append(_scope_step(client))
     ids = allowed_ids()
     steps.append({"段": "2. 許可リスト", "結果": "よい" if ids else "まだ",
                   **({"件数": f"{len(ids)} 件"} if ids else {"直し方": f"本人が端末で `ochinana-ads-connect check --media meta` を動かし、"
                                                                      f"読む広告アカウントを選んで出た 1 行（{ENV_ALLOWED}=…）を設定に足す"})})
     if f.get("ファイル") != "ある" or not ids:
         return {"段": steps, "結論": "Meta はまだつないでいない（使わないなら、このままでよい）。用意するもの: "
-                                   "①Meta のビジネスポートフォリオ ②開発者のアプリ ③ads_read だけのシステムユーザーのトークン "
+                                   "①Meta のビジネスポートフォリオ ②開発者のアプリ ③システムユーザーのトークン（広告アカウントの割り当ては「パフォーマンスを確認」だけにすると二重の守り。ads_read だけにできるアプリならそうする） "
                                    "④その鍵のファイルと環境変数 ⑤許可リスト。手順は README の「Meta 広告を読む」"}
     acc = list_accounts(client)
     ok = all("読めない理由" not in r for r in acc["アカウント"])

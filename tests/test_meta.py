@@ -245,14 +245,38 @@ def test_check_connectionにMetaの段が付き_用意が無ければ何が要�
     monkeypatch.delenv("GOOGLE_ADS_CONFIGURATION_FILE_PATH", raising=False)
     out = tools.check_connection(run=lambda *a: [], accessible=lambda: [])
     m = out["Meta 広告"]
-    assert m["段"][0]["結果"] == "まだ" and "ads_read" in m["結論"] and "README" in m["結論"]
+    assert m["段"][0]["結果"] == "まだ" and "パフォーマンスを確認" in m["結論"] and "README" in m["結論"]
 
 
 def test_check_connectionのMetaの段は_許可リストの広告アカウントを読む(env):
     c, _ = client({f"/act_{A1}": {"name": "架空", "currency": "JPY", "account_status": 1},
-                   f"/act_{A2}": {"name": "架空 2", "currency": "JPY", "account_status": 1}})
+                   f"/act_{A2}": {"name": "架空 2", "currency": "JPY", "account_status": 1},
+                   "/me/permissions": {"data": [{"permission": "ads_read", "status": "granted"}]}})
     out = meta.check(client=c)
     assert out["結論"].startswith("Meta もつながった") and TOKEN not in json.dumps(out, ensure_ascii=False)
+    assert out["段"][1]["結果"] == "よい" and "注記" not in out["段"][1]
+
+
+def test_トークンに書き込みの権限があれば_止めずに注記を出す(env):
+    perms = {"data": [{"permission": "ads_management", "status": "granted"}, {"permission": "ads_read", "status": "granted"},
+                      {"permission": "pages_show_list", "status": "declined"}]}
+    c, _ = client({f"/act_{A1}": {"name": "架空", "currency": "JPY", "account_status": 1},
+                   f"/act_{A2}": {"name": "架空 2", "currency": "JPY", "account_status": 1}, "/me/permissions": perms})
+    out = meta.check(client=c)
+    step = out["段"][1]
+    assert step["結果"].startswith("注意") and "書き込みの権限も持っています" in step["注記"] and "ads_management" in step["注記"]
+    assert step["権限"] == ["ads_management", "ads_read"]  # declined は数えない
+    assert out["結論"].startswith("Meta もつながった")  # 止めない
+
+
+def test_権限を確かめられなくても止めず_決まった文で注記を出す(env):
+    c, _ = client({f"/act_{A1}": {"name": "架空", "currency": "JPY", "account_status": 1},
+                   f"/act_{A2}": {"name": "架空 2", "currency": "JPY", "account_status": 1},
+                   "/me/permissions": {"error": {"message": "unsupported", "code": 100}, "_status": 400}})
+    out = meta.check(client=c)
+    step = out["段"][1]
+    assert step["結果"].startswith("確かめられなかった") and "二重の守り" in step["注記"]
+    assert out["結論"].startswith("Meta もつながった")
 
 
 def test_端末のcheckは_鍵が無ければ用意を出し_あれば許可リストの1行を作る(env, monkeypatch, capsys):
@@ -264,6 +288,7 @@ def test_端末のcheckは_鍵が無ければ用意を出し_あれば許可リ�
     assert "AI に貼らない" in shown and TOKEN not in shown
     monkeypatch.delenv(meta.ENV_TOKEN_FILE)
     assert connect.cmd_check(argparse.Namespace(media="meta", allow_pipe=True), client=c, ask=lambda _: "1") is None
-    assert "ads_read" in capsys.readouterr().out
+    shown = capsys.readouterr().out
+    assert "パフォーマンスを確認" in shown and "ads_management" in shown
     with pytest.raises(connect.ConnectError, match="端末"):
         connect.cmd_check(argparse.Namespace(media="meta"), client=c, ask=lambda _: "1")

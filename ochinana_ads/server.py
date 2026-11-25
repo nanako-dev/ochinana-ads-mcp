@@ -19,7 +19,7 @@ server = MCPServer(
     name="ochinana-ads",
     version=VERSION,
     instructions=(
-        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。Meta 広告は、本人が自分のトークン（ads_read だけ）と許可リストを用意したときだけ、meta_list_accounts・meta_get_performance・meta_get_daily で読める（読むだけ）。つながらない・入れたばかりのときは check_connection。\n"
+        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。Meta 広告は、本人が自分のトークンと許可リストを用意したときだけ、meta_list_accounts・meta_get_performance・meta_get_daily で読める（読むだけ）。つながらない・入れたばかりのときは check_connection。\n"
         "1. 広告運用の質問には、答える前に必ず知識ベースを引く。会話の最初の 1 回は kb_overview と kb_read(file='90')"
         "（核となる理解。無ければ kb_read(file='型00')）を読む。\n"
         "2. 問いの型ごとの引き方: できる／できない・上限 → kb_rules。なぜ → kb_read（00 と該当メモ）。"
@@ -88,7 +88,7 @@ def check_connection() -> dict:
 def meta_list_accounts() -> dict:
     """Meta 広告の許可リスト（環境変数 ADS_ALLOWED_META_ACCOUNT_IDS）の広告アカウントの ID・名前・通貨・タイムゾーン・状態を返す。
 
-    読むだけ（GET だけ）。鍵は本人のトークン（ads_read だけ）を、環境変数 META_ADS_TOKEN_FILE が指すファイルから読む。
+    読むだけ（GET だけ）。鍵は本人のシステムユーザーのトークンを、環境変数 META_ADS_TOKEN_FILE が指すファイルから読む。
     ほかの meta_* の道具に渡す account_id はここで確かめる（act_ は付けても付けなくてもよい）。
     """
     return meta.list_accounts()
