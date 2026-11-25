@@ -22,19 +22,20 @@ Google の公式の道具ではありません。知識ベースの中身を図�
 | 媒体 | 実績を読む | レポート | 知識ベース |
 |---|---|---|---|
 | Google 広告 | **API で読む**（読むだけ） | API の数字から作る | あり（いちばん厚い。運用の型・ロジックツリー・Tips・用語集つき） |
-| Meta 広告 | API ではつながっていない | 管理画面から書き出した CSV から作る | あり（`media="meta"`。ロジックツリーつき） |
-| LINEヤフー広告 | 同上 | 同上 | あり（`media="lineyahoo"`） |
-| ChatGPT の広告 | 同上 | 同上 | あり（`media="chatgpt"`） |
+| Meta 広告 | 自分のトークン（`ads_read` だけ）で読む（読むだけ。`meta_list_accounts`・`meta_get_performance`・`meta_get_daily`）。用意しなければ使わなくてよい | 管理画面から書き出した CSV から作る | あり（`media="meta"`。ロジックツリーつき） |
+| LINEヤフー広告 | API ではつながっていない | 管理画面から書き出した CSV から作る | あり（`media="lineyahoo"`） |
+| ChatGPT の広告 | API ではつながっていない | 同上 | あり（`media="chatgpt"`） |
 
 - CSV の列の名前は、各媒体の公式の列の説明に合わせています。実物の書き出しのファイルでは、まだ全部は試していません。
-- 金額は**円のアカウント向け**です。円以外のアカウントは、実績を読む道具が断ります。
+- Google 広告の金額は**円のアカウント向け**です。円以外のアカウントは、実績を読む道具が断ります。Meta 広告の道具は、アカウントの通貨のまま返し、円以外なら注記します。
 
-### 道具（53 個）
+### 道具（56 個）
 
 | まとまり | 道具 |
 |---|---|
 | つなぐ・確かめる | `check_connection`（認証ファイル → API → 許可リストの各アカウントの順に確かめ、つまずいた所と直し方を返す）、`list_accounts` |
 | 読む（Google 広告） | `get_performance`・`get_search_terms`・`get_keywords`・`get_ads_and_assets`・`get_generated_text`・`get_change_history` |
+| 読む（Meta 広告。使うときだけ） | `meta_list_accounts`（許可リストの広告アカウント）・`meta_get_performance`（キャンペーン／広告セット／広告の期間の合計）・`meta_get_daily`（日別。全件は CSV） |
 | 点検する | `run_checks`（入札と成果の設定・広告の有効性・表示オプション・キーワードと広告文のずれ・重複・検索語句・地域・LP の速度・広告ランクと予算で失った表示）、`audit_landing_page` |
 | 変化を見る | `measure_effect`（変更の前後の差を偶然の範囲と並べる。因果は判定しない）、`get_anomalies`（いつもの水準からの外れ） |
 | 見込む | `forecast_volume`（キーワードプランナー。利用権限が Basic 以上のときだけ）・`forecast_vs_actual` |
@@ -211,7 +212,35 @@ AI に「**check_connection で確かめて**」と頼みます。次の 3 段�
 2. Google 広告 API
 3. 許可リストの各アカウント
 
+Meta 広告の段（鍵のファイル → 許可リスト → 各広告アカウント）も、あわせて「Meta 広告」に返します。用意していなければ、何が要るかを返すだけです。
+
 「つながった」と出れば終わりです。続けて「list_accounts で読めるアカウントを見せて」と頼むと、名前・通貨・タイムゾーンが出ます。
+
+## Meta 広告を読む（使うときだけ）
+
+Meta 広告は、自分の広告アカウントを、自分で作ったトークンで読みます。読むだけで、広告を変える呼び出しはありません（道具が送るのは GET だけ）。使わないなら、この節は飛ばしてかまいません。
+
+1. Meta の開発者として登録し（developers.facebook.com）、アプリを作る。ユースケースは「Measure ad performance data with Marketing API」
+2. ビジネス設定でシステムユーザーを作り、そのアプリと、読む広告アカウントを割り当てる
+3. システムユーザーでトークンを作る。**権限は `ads_read` だけ**にする。期限は 60 日か期限なしを選ぶ（60 日なら切れる前に作り直す）
+4. トークンを 1 行だけ書いたファイルを、このフォルダの**外**に置き、`chmod 600` にする。チャットには貼らない
+5. AI のアプリの設定（環境変数）に `META_ADS_TOKEN_FILE=そのファイルの場所` を足す
+6. 自分の端末で、読む広告アカウントを選ぶ（一覧は AI に貼らない）
+
+```bash
+uv run ochinana-ads-connect check --media meta
+```
+
+7. 出た 1 行（`ADS_ALLOWED_META_ACCOUNT_IDS=…`）を設定に足し、AI のアプリを起動し直して、「check_connection で確かめて」と頼む
+
+- 道具は鍵を、呼ぶ直前にだけファイルから読み、`Authorization: Bearer` のヘッダーで送ります。URL・返事・CSV・エラーの文には出しません。
+- 返す列は、表示・リーチ・クリック(すべて)・リンククリック・CTR(リンク)・CPC(リンク)・CPM・消化金額・結果・結果の単価です。
+- 返事には次の注記が付きます。
+  - 「結果」の数え方は、目的と設定で決まります（種類の違う結果は合計しません）。
+  - 窓は広告セットのアトリビューション設定に従います。計上日は mixed です。
+  - 直近 28 日の数字はまだ動きます。
+- 呼び出しの上限のヘッダーが 80% を超えたら、少し待ってから続けます。
+- まだ本物の広告アカウントでは試していません（模擬の応答のテストだけ）。最初に使うときは `check_connection` で確かめてください。
 
 ## つまずいたとき
 
@@ -227,6 +256,9 @@ AI に「**check_connection で確かめて**」と頼みます。次の 3 段�
 | `connect check` が「端末で直接動かす」で止まる | AI や別のプログラムから動かした | 自分の端末で直接動かす |
 | 円以外のアカウントで断られる | 円のアカウント向けの作り | — |
 | 「知識ベースのフォルダが見つからない」 | `kb/` が無いか、`ADS_KB_DIR` の場所が違う | 場所を確かめる |
+| Meta で `code 190` | トークンが無効か期限切れ | システムユーザーのトークンを作り直し、鍵のファイルを書き換える |
+| Meta で `code 200`・`code 10` | 権限が足りない | トークンに `ads_read` があるか、システムユーザーに広告アカウントが割り当てられているかを見る |
+| Meta で「許可リストに無い」 | `ADS_ALLOWED_META_ACCOUNT_IDS` に無い広告アカウント | `connect check --media meta` で選び直す |
 
 道具の返すエラーには、分かるものに「直し方」を付けています。
 
@@ -237,6 +269,9 @@ AI に「**check_connection で確かめて**」と頼みます。次の 3 段�
 | `GOOGLE_ADS_CONFIGURATION_FILE_PATH` | 認証ファイルの場所 | Google 広告を読む道具が断る |
 | `ADS_ALLOWED_CUSTOMER_IDS` | 読んでよいアカウントの ID（カンマ区切り、10 桁） | どのアカウントも断る |
 | `ADS_FROZEN_CAMPAIGNS` | 検証中で変えないキャンペーン（JSON: `{"名前": ["最終日", "理由"]}`）。レポートの「次にやること」で、変える案を「様子を見る」に回す | 固定なし |
+| `META_ADS_TOKEN_FILE` | Meta のトークン（`ads_read` だけ）を書いたファイルの場所 | Meta の道具が、用意の仕方を返す |
+| `ADS_ALLOWED_META_ACCOUNT_IDS` | 読んでよい Meta の広告アカウントの ID（カンマ区切り。`act_` は付けても付けなくてもよい） | Meta の道具が断る |
+| `META_ADS_API_VERSION` | Marketing API の版 | `v27.0` |
 | `ADS_KB_DIR` | Google 広告の知識ベースのフォルダ | 同梱の `kb/Google広告の基礎` |
 | `ADS_KB_DIR_META`・`ADS_KB_DIR_LINEYAHOO`・`ADS_KB_DIR_CHATGPT` | ほかの媒体の知識ベースのフォルダ | `ADS_KB_DIR` と同じ階層の `Meta広告の基礎` など |
 | `ADS_INTEL_DIR` | 知見カード（`cards/`）のフォルダ | カードの道具が断る |
@@ -251,6 +286,7 @@ AI に「**check_connection で確かめて**」と頼みます。次の 3 段�
 - Google 広告 API へ、読み取りの問い合わせ（GAQL）を送ります。変更する呼び出しはありません。
 - `audit_landing_page` と `run_checks` の LP の点検は、LP の URL を PageSpeed Insights（Google の公開の計測）に送ります。送るのは URL だけです。
 - `forecast_volume` は、キーワードの語・地域・言語を Google 広告 API（キーワードプランナー）に送ります。
+- `meta_*` の道具は、Meta の Graph API（graph.facebook.com）へ、読み取りの GET を送ります（広告アカウントの情報と Insights）。
 - `ochinana-ads-connect token` は、許可を受けるために Google のログインの画面とやり取りします。
 - そのほかの道具は、外へ何も送りません。
 

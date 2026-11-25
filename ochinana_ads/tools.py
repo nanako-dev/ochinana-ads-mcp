@@ -127,7 +127,20 @@ def list_accounts(run: Optional[Search] = None) -> dict:
     return out
 
 
-def check_connection(run: Optional[Search] = None, accessible: Optional[Callable[[], List[str]]] = None) -> dict:
+def check_connection(run: Optional[Search] = None, accessible: Optional[Callable[[], List[str]]] = None,
+                     meta_client=None) -> dict:
+    """Google の段と、Meta 広告の段をまとめて返す。Meta を用意していなければ、何が要るかを返すだけ（Google の結果は変えない）。"""
+    from . import meta
+
+    out = _check_google(run, accessible)
+    try:
+        out["Meta 広告"] = meta.check(meta_client)
+    except (ValueError, meta.MetaError) as ex:
+        out["Meta 広告"] = {"結論": f"Meta の確かめで止まった: {ex}"}
+    return out
+
+
+def _check_google(run: Optional[Search] = None, accessible: Optional[Callable[[], List[str]]] = None) -> dict:
     """つないだあとの確かめ。設定 → API → 許可リストの各アカウント、の順に見る。
 
     許可リストに無いアカウントの ID と名前は返さない（同じログインで勤務先や取引先のアカウントにも届くことがあるため。

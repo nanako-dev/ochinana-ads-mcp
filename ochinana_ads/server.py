@@ -11,7 +11,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from . import abcd, calc, curvefit, decisions, feed, kata, kb, mediaplan, quiz, simulate, specs, stats, tools, urltool, video
+from . import abcd, calc, curvefit, decisions, feed, kata, kb, mediaplan, meta, quiz, simulate, specs, stats, tools, urltool, video
 from .client import SetupError, explain_api_error, explain_auth_error
 from .config import DEFAULT_TOP_N, VERSION
 
@@ -19,13 +19,13 @@ server = MCPServer(
     name="ochinana-ads",
     version=VERSION,
     instructions=(
-        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。つながらない・入れたばかりのときは check_connection。\n"
+        "OCHINANA の広告運用セット。Google 広告の許可したアカウント（環境変数 ADS_ALLOWED_CUSTOMER_IDS）を読むだけで、変更はできない。ID は list_accounts で確かめる。金額は円。Meta 広告は、本人が自分のトークン（ads_read だけ）と許可リストを用意したときだけ、meta_list_accounts・meta_get_performance・meta_get_daily で読める（読むだけ）。つながらない・入れたばかりのときは check_connection。\n"
         "1. 広告運用の質問には、答える前に必ず知識ベースを引く。会話の最初の 1 回は kb_overview と kb_read(file='90')"
         "（核となる理解。無ければ kb_read(file='型00')）を読む。\n"
         "2. 問いの型ごとの引き方: できる／できない・上限 → kb_rules。なぜ → kb_read（00 と該当メモ）。"
         "指標が動いた → kb_logic_tree。次に何をするか → kb_kata（kind='状態' で決定木の問いに答えて状態を決め、"
         "state='状N' でその状態の規則を引く）。やり方の助言 → kb_tips（仮説と断る）。主張の真偽 → kb_check_claim。"
-        "用語 → kb_glossary。語で広く → kb_search。Meta・LINEヤフー・ChatGPT の広告 → kb_* に media（meta／lineyahoo／chatgpt）を付ける（その媒体に無い種類のメモは、無いと返る）（この 3 媒体は API でつながっていない。数字は管理画面の CSV から report_numbers_csv）。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
+        "用語 → kb_glossary。語で広く → kb_search。Meta・LINEヤフー・ChatGPT の広告 → kb_* に media（meta／lineyahoo／chatgpt）を付ける（その媒体に無い種類のメモは、無いと返る）（LINEヤフー・ChatGPT は API でつながっていない。数字は管理画面の CSV から report_numbers_csv。Meta は meta_* の道具か CSV）。計算 → 小さな道具（ad_text_check・url_builder・unit_economics・"
         "budget_pace・cpa_roas_simulate・media_plan_simulate・fit_response_curve・image_spec_check・significance・data_needed・compare_variants・list_compare・feed_check）で、暗算しない。"
         "アカウントの診断 → run_checks。誰がいつ何を変えたか → get_change_history。変更の前後 → measure_effect（前後の差まで。因果と言わない）。"
         "いつもの水準から外れたもの → get_anomalies。"
@@ -58,7 +58,7 @@ def _guard(fn):
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except (ValueError, SetupError) as ex:
+        except (ValueError, SetupError, meta.MetaError) as ex:
             raise ToolError(str(ex)) from None
         except Exception as ex:
             if getattr(ex, "failure", None) is not None:  # Google 広告 API が返したエラー
@@ -78,8 +78,43 @@ def check_connection() -> dict:
 
     認証ファイルは中身を開かない（有無・権限・置き場所だけ）。許可リストに無いアカウントの ID と名前は返さない
     （直接読める件数だけ）。読むアカウントを選ぶのは、本人が端末で `uv run ochinana-ads-connect check` を動かして行う。
+    Meta 広告の段（鍵のファイル → 許可リスト → 各広告アカウント）も「Meta 広告」に返す。用意していなければ、何が要るかを返す。
     """
     return tools.check_connection()
+
+
+@server.tool(title="Meta 広告のアカウントの一覧", annotations=READ_ONLY)
+@_guard
+def meta_list_accounts() -> dict:
+    """Meta 広告の許可リスト（環境変数 ADS_ALLOWED_META_ACCOUNT_IDS）の広告アカウントの ID・名前・通貨・タイムゾーン・状態を返す。
+
+    読むだけ（GET だけ）。鍵は本人のトークン（ads_read だけ）を、環境変数 META_ADS_TOKEN_FILE が指すファイルから読む。
+    ほかの meta_* の道具に渡す account_id はここで確かめる（act_ は付けても付けなくてもよい）。
+    """
+    return meta.list_accounts()
+
+
+@server.tool(title="Meta 広告の期間の成果", annotations=READ_ONLY)
+@_guard
+def meta_get_performance(account_id: str, start: str, end: str, level: str = "campaign", top_n: int = DEFAULT_TOP_N) -> dict:
+    """Meta 広告の成果を、キャンペーン／広告セット／広告（level = campaign / adset / ad）の単位で、期間の合計にして返す。
+
+    列: 表示・リーチ・クリック(すべて)・リンククリック・CTR(リンク)・CPC(リンク)・CPM・消化金額・結果・結果の種類・結果の単価。
+    消化金額の多い順に top_n 行。多いときは全件を out/ に CSV。金額はアカウントの通貨（円以外は注記）。
+    「結果」は目的と設定で数える物が違うので、種類の違う行は合計で足さない。注記（窓・計上日・まだ動く数字）も返す。
+    start / end: YYYY-MM-DD（広告アカウントのタイムゾーンの日付）。
+    """
+    return meta.performance(account_id, start, end, level, top_n)
+
+
+@server.tool(title="Meta 広告の日別の成果", annotations=READ_ONLY)
+@_guard
+def meta_get_daily(account_id: str, start: str, end: str, level: str = "campaign") -> dict:
+    """Meta 広告の成果を日別に読む（time_increment=1）。返すのは 1 日ごとの合計（リーチは足し上げないので出さない）で、
+    日 × キャンペーン／広告セット／広告の全件は out/ に CSV。列と注記は meta_get_performance と同じ。
+    直近 28 日の数字はまだ動く。start / end: YYYY-MM-DD。
+    """
+    return meta.daily(account_id, start, end, level)
 
 
 @server.tool(title="使えるアカウントの一覧", annotations=READ_ONLY)

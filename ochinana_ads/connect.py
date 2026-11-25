@@ -5,6 +5,8 @@
 
 - token: ブラウザで本人が許可し、受け取ったリフレッシュトークンを認証ファイルに書く。値は画面に出さない。
   ファイルは本人だけが読める権限（600）で作り、この道具のフォルダの中には置かせない。
+- check --media meta: Meta 広告のトークン（META_ADS_TOKEN_FILE）で読める広告アカウントを一覧にし、
+  選んだ ID から許可リストの 1 行（ADS_ALLOWED_META_ACCOUNT_IDS=…）を作る。鍵のファイルが無いときは、用意するものを出す。
 - check: このログインで読めるアカウント（直接のものと、マネージャーの配下）を一覧にし、
   選んだ ID から許可リストの 1 行（ADS_ALLOWED_CUSTOMER_IDS=…）を作る。
   一覧には勤務先や取引先のアカウントが混じることがあるので、端末にだけ出す（AI に貼らない）。
@@ -201,7 +203,65 @@ def allow_line(picked: List[dict]) -> dict:
     return {"line": f"{ENV_ALLOWED}={','.join(ids)}", "notes": notes}
 
 
+META_SETUP = (
+    "Meta 広告を読むための用意（本人が行う。AI に鍵を渡さない）:\n"
+    "  1. Meta のビジネスポートフォリオ（ビジネス設定）を作り、広告アカウントを入れる\n"
+    "  2. developers.facebook.com でアプリを作る（種類はビジネス）。Marketing API を足す\n"
+    "  3. ビジネス設定 → システムユーザーを作り、広告アカウントを割り当てる（見るだけで足りる）\n"
+    "  4. そのシステムユーザーで、権限を ads_read だけにしてトークンを作る\n"
+    "  5. トークンを 1 行だけ書いたファイルを、この道具のフォルダの外に置き、chmod 600 にする\n"
+    "  6. AI のアプリの設定（環境変数）に META_ADS_TOKEN_FILE=そのファイルの場所 を足す\n"
+    "  7. もう一度 `ochinana-ads-connect check --media meta` を動かし、読む広告アカウントを選ぶ"
+)
+
+
+def cmd_check_meta(args, client=None, ask: Callable[[str], str] = input) -> Optional[dict]:
+    from . import meta
+
+    if not getattr(args, "allow_pipe", False) and not sys.stdout.isatty():
+        raise ConnectError("check は、本人が自分の端末で動かすためのもの。端末で直接動かす")
+    st = meta.token_file_status()
+    if st.get("ファイル") != "ある":
+        print(META_SETUP)
+        print(f"\nいまの状態: {st.get('直し方', '')}")
+        return None
+    for w in st.get("注意", []):
+        print("注意: " + w)
+    try:
+        rows = meta.discover(client)
+    except meta.MetaError as ex:
+        raise ConnectError(str(ex)) from None
+    print("このトークンで読める Meta の広告アカウント（この一覧は AI に貼らないでください）:\n")
+    for i, r in enumerate(rows, 1):
+        extra = f"  ※{r['状態']}" if r.get("状態") and r["状態"] != "有効" else ""
+        print(f"  {i:>2}. act_{r['ID']}  {r['名前']}  [{r['通貨']}]{extra}")
+    if not rows:
+        print("  （無い）システムユーザーに広告アカウントが割り当てられていない。ビジネス設定で割り当てる。")
+        return None
+    raw = ask("\nAI に読ませる広告アカウントの番号を、カンマ区切りで入れてください（何もせず Enter で終わり）: ").strip()
+    if not raw:
+        return None
+    picked = []
+    for x in raw.replace("、", ",").split(","):
+        x = x.strip()
+        if not x:
+            continue
+        if not x.isdigit() or not 1 <= int(x) <= len(rows):
+            raise ConnectError(f"番号 {x!r} は一覧に無い")
+        picked.append(rows[int(x) - 1])
+    line = f"{meta.ENV_ALLOWED}=" + ",".join(dict.fromkeys(r["ID"] for r in picked))
+    notes = [f"act_{r['ID']} の通貨は {r['通貨']}。金額はその通貨のまま返す" for r in picked if r["通貨"] and r["通貨"] != "JPY"]
+    print("\nAI のアプリの設定（環境変数）に、次の 1 行を足してください:\n")
+    print("  " + line)
+    for n in notes:
+        print("  注意: " + n)
+    print("\n足したら AI のアプリを起動し直し、AI に「check_connection で確かめて」と頼むと、つながったかが分かります。")
+    return {"line": line, "notes": notes}
+
+
 def cmd_check(args, client=None, ask: Callable[[str], str] = input) -> Optional[dict]:
+    if getattr(args, "media", "google") == "meta":
+        return cmd_check_meta(args, client, ask)
     if not getattr(args, "allow_pipe", False) and not sys.stdout.isatty():
         raise ConnectError("check は、本人が自分の端末で動かすためのもの（一覧に勤務先や取引先のアカウントが混じることがあるので、"
                            "AI や別のプログラムの出力には出さない）。端末で直接動かす")
@@ -239,7 +299,7 @@ def cmd_check(args, client=None, ask: Callable[[str], str] = input) -> Optional[
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(prog="ochinana-ads-connect", description="Google 広告 API につなぐための小さな道具（本人が端末で動かす）")
+    ap = argparse.ArgumentParser(prog="ochinana-ads-connect", description="Google 広告 API と Meta の広告 API につなぐための小さな道具（本人が端末で動かす）")
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("token", help="ブラウザで許可して、認証ファイルを作る")
     t.add_argument("--client-secret", required=True, help="Google Cloud で落とした OAuth クライアントの JSON")
@@ -247,6 +307,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     t.add_argument("--login-customer-id", default="", help="マネージャー経由で読むときの、マネージャーの 10 桁")
     t.add_argument("--force", action="store_true", help="同じ名前のファイルがあっても上書きする")
     c = sub.add_parser("check", help="読めるアカウントを一覧にし、許可リストの 1 行を作る")
+    c.add_argument("--media", choices=("google", "meta"), default="google", help="どの媒体を確かめるか（既定は google）")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "token":
